@@ -19,6 +19,8 @@ export default function SiteDetailScreen() {
   const router = useRouter()
   const [site, setSite] = useState<any>(null)
   const [gardens, setGardens] = useState<any[]>([])
+  const [nearbyGardens, setNearbyGardens] = useState<any[]>([])
+  const [unassignedGardens, setUnassignedGardens] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -64,11 +66,75 @@ export default function SiteDetailScreen() {
           .order('created_at', { ascending: false })
 
         setGardens(gardensData || [])
+
+        // Load all unassigned gardens for "Add Existing Garden" feature
+        const { data: unassignedData } = await supabase
+          .from('gardens')
+          .select('*')
+          .is('site_id', null)
+          .is('archived_at', null)
+          .order('name')
+
+        setUnassignedGardens(unassignedData || [])
+
+        // Load nearby gardens - gardens without site_id that are geographically close
+        // For now, use a simple distance check if location data is available
+        if (siteData.location_lat && siteData.location_lng && unassignedData) {
+          const nearby = unassignedData.filter((garden: any) => {
+            if (!garden.location_lat || !garden.location_lng) return false
+
+            // Simple distance calculation (rough approximation in degrees)
+            // 0.01 degrees is roughly 1km
+            const latDiff = Math.abs(garden.location_lat - siteData.location_lat)
+            const lngDiff = Math.abs(garden.location_lng - siteData.location_lng)
+            const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff)
+
+            // Consider "nearby" if within ~5km (0.05 degrees)
+            return distance < 0.05
+          })
+          setNearbyGardens(nearby)
+        }
       }
     } catch (error) {
       console.error('Error loading site:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleAddGardenToSite = async (gardenId: string) => {
+    try {
+      const { error } = await supabase
+        .from('gardens')
+        .update({ site_id: id })
+        .eq('id', gardenId)
+
+      if (error) throw error
+
+      loadSiteDetails()
+    } catch (error) {
+      console.error('Error adding garden to site:', error)
+      alert('Failed to add garden to site')
+    }
+  }
+
+  const handleRemoveGardenFromSite = async (gardenId: string) => {
+    if (!confirm('Remove this garden from the site? The garden will not be deleted.')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('gardens')
+        .update({ site_id: null })
+        .eq('id', gardenId)
+
+      if (error) throw error
+
+      loadSiteDetails()
+    } catch (error) {
+      console.error('Error removing garden from site:', error)
+      alert('Failed to remove garden from site')
     }
   }
 
@@ -294,14 +360,33 @@ export default function SiteDetailScreen() {
 
           {/* Gardens at this Site */}
           <View className="gap-4">
-            <Text className="text-2xl font-semibold text-coal">Gardens at this Site</Text>
+            <View className="flex-row items-center justify-between">
+              <Text className="text-2xl font-semibold text-coal">Gardens at this Site</Text>
+              <View className="flex-row gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onPress={() => router.push('/gardens/add')}
+                >
+                  <Text className="text-coal font-medium text-xs">+ New Garden</Text>
+                </Button>
+              </View>
+            </View>
+
             {gardens.length === 0 ? (
               <Card>
-                <CardContent className="items-center py-8">
+                <CardContent className="items-center py-8 gap-3">
                   <Text className="text-4xl mb-2">🌱</Text>
                   <Text className="text-coal/60 text-center">
                     No gardens assigned to this site yet
                   </Text>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onPress={() => router.push('/gardens/add')}
+                  >
+                    <Text className="text-white font-medium">Create First Garden</Text>
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
@@ -317,19 +402,99 @@ export default function SiteDetailScreen() {
                       </Text>
                     )}
                   </CardHeader>
-                  <CardContent>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onPress={() => router.push(`/gardens/${garden.id}`)}
-                    >
-                      <Text className="text-white font-medium text-sm">View Garden</Text>
-                    </Button>
+                  <CardContent className="gap-2">
+                    <View className="flex-row gap-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onPress={() => router.push(`/gardens/${garden.id}`)}
+                        className="flex-1"
+                      >
+                        <Text className="text-white font-medium text-xs">View Garden</Text>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onPress={() => handleRemoveGardenFromSite(garden.id)}
+                      >
+                        <Text className="text-coal font-medium text-xs">Remove</Text>
+                      </Button>
+                    </View>
                   </CardContent>
                 </Card>
               ))
             )}
           </View>
+
+          {/* Nearby Gardens */}
+          {nearbyGardens.length > 0 && (
+            <View className="gap-4">
+              <Text className="text-2xl font-semibold text-coal">Nearby Gardens</Text>
+              <Card>
+                <CardContent className="gap-2">
+                  <Text className="text-xs text-coal/60 mb-2">
+                    These unassigned gardens are geographically near this site. Add them to track all your gardens at this location together.
+                  </Text>
+                  {nearbyGardens.map((garden) => (
+                    <View key={garden.id} className="flex-row items-center justify-between py-2 border-t border-coal/10">
+                      <View className="flex-1">
+                        <Text className="text-base font-medium text-coal">
+                          {garden.name}
+                        </Text>
+                        {garden.location_description && (
+                          <Text className="text-xs text-coal/60">
+                            📍 {garden.location_description}
+                          </Text>
+                        )}
+                      </View>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onPress={() => handleAddGardenToSite(garden.id)}
+                      >
+                        <Text className="text-white font-medium text-xs">Add to Site</Text>
+                      </Button>
+                    </View>
+                  ))}
+                </CardContent>
+              </Card>
+            </View>
+          )}
+
+          {/* All Unassigned Gardens */}
+          {unassignedGardens.length > 0 && nearbyGardens.length === 0 && (
+            <View className="gap-4">
+              <Text className="text-xl font-semibold text-coal">Add Existing Garden</Text>
+              <Card>
+                <CardContent className="gap-2">
+                  <Text className="text-xs text-coal/60 mb-2">
+                    Select an unassigned garden to add it to this site
+                  </Text>
+                  {unassignedGardens.map((garden) => (
+                    <View key={garden.id} className="flex-row items-center justify-between py-2 border-t border-coal/10">
+                      <View className="flex-1">
+                        <Text className="text-base font-medium text-coal">
+                          {garden.name}
+                        </Text>
+                        {garden.location_description && (
+                          <Text className="text-xs text-coal/60">
+                            📍 {garden.location_description}
+                          </Text>
+                        )}
+                      </View>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onPress={() => handleAddGardenToSite(garden.id)}
+                      >
+                        <Text className="text-coal font-medium text-xs">Add</Text>
+                      </Button>
+                    </View>
+                  ))}
+                </CardContent>
+              </Card>
+            </View>
+          )}
 
           {/* Actions */}
           <Card>

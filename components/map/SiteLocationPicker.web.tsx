@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator } from 'react-native'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { GoogleMapWeb } from './GoogleMapWeb'
+import { AddressPicker } from './AddressPicker'
 
 interface Coordinate {
   latitude: number
@@ -116,14 +117,30 @@ export function SiteLocationPicker({
     onBoundaryChange?.([])
   }
 
+  const handleAddressSelect = (address: string, lat: number, lng: number) => {
+    const coords = { latitude: lat, longitude: lng }
+    setLocation(coords)
+    setMapCenter({ lat, lng })
+    setMapZoom(18)
+    onLocationChange?.(lat, lng)
+  }
+
   return (
     <View className="gap-4">
       <Card>
         <CardContent className="gap-3">
           <Text className="text-sm font-medium text-coal">Site Location & Boundary</Text>
           <Text className="text-xs text-coal/60">
-            Set your site location using GPS, then draw a boundary by clicking points on the map
+            Search for an address, use GPS, or click on the map. Then draw a boundary by clicking points.
           </Text>
+
+          {/* Address Search */}
+          {typeof window !== 'undefined' && (
+            <AddressPicker
+              onAddressSelect={handleAddressSelect}
+              placeholder="Search for an address..."
+            />
+          )}
 
           <View className="flex-row gap-2">
             <Button
