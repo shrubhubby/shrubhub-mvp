@@ -1,0 +1,47 @@
+module.exports = {
+  expo: {
+    name: "ShrubHub",
+    slug: "shrubhub",
+    version: "1.0.0",
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    userInterfaceStyle: "light",
+    newArchEnabled: true,
+    splash: {
+      image: "./assets/splash-icon.png",
+      resizeMode: "contain",
+      backgroundColor: "#228B1B"
+    },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.shrubhub.app"
+    },
+    android: {
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#228B1B"
+      },
+      package: "com.shrubhub.app"
+    },
+    web: {
+      favicon: "./assets/favicon.png",
+      bundler: "metro"
+    },
+    plugins: [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow ShrubHub to use your location to set site coordinates and automatically detect your hardiness zone."
+        }
+      ]
+    ],
+    scheme: "shrubhub",
+    extra: {
+      router: {
+        origin: false
+      }
+    }
+  }
+}
