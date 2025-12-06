@@ -25,26 +25,50 @@ export default function PlantDetailScreen() {
 
   const loadPlantDetails = async () => {
     try {
-      const { data: plantData } = await supabase
+      // First, try to fetch with relationships
+      const { data: plantData, error: plantError } = await supabase
         .from('plants')
-        .select(`
-          *,
-          plants_master (
-            common_names,
-            scientific_name,
-            sunlight_min,
-            sunlight_max,
-            hardiness_zone_min,
-            hardiness_zone_max
-          ),
-          gardens (
-            name
-          )
-        `)
+        .select('*')
         .eq('id', id)
         .single()
 
-      setPlant(plantData)
+      if (plantError || !plantData) {
+        console.error('Error loading plant:', plantError)
+        setPlant(null)
+        setIsLoading(false)
+        return
+      }
+
+      // Try to fetch related data separately
+      let plantWithRelations = { ...plantData }
+
+      // Fetch plants_master data if plants_master_id exists
+      if (plantData.plants_master_id) {
+        const { data: masterData } = await supabase
+          .from('plants_master')
+          .select('common_names, scientific_name, sunlight_min, sunlight_max, hardiness_zone_min, hardiness_zone_max')
+          .eq('id', plantData.plants_master_id)
+          .single()
+
+        if (masterData) {
+          plantWithRelations.plants_master = masterData
+        }
+      }
+
+      // Fetch garden data if garden_id exists
+      if (plantData.garden_id) {
+        const { data: gardenData } = await supabase
+          .from('gardens')
+          .select('name')
+          .eq('id', plantData.garden_id)
+          .single()
+
+        if (gardenData) {
+          plantWithRelations.gardens = gardenData
+        }
+      }
+
+      setPlant(plantWithRelations)
     } catch (error) {
       console.error('Error loading plant:', error)
     } finally {
