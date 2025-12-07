@@ -1154,7 +1154,7 @@
             'locations': [
                 { icon: '🏡', label: 'Add Site' },
                 { icon: '🌳', label: 'Add Garden' },
-                { icon: '🗺️', label: 'View Map' }
+                { icon: '👁️', label: 'View Gardens' }
             ],
             'gardener': [
                 { icon: '⚙️', label: 'Settings' },
@@ -2280,8 +2280,8 @@
                 case 'Add Garden':
                     await handleAddGarden('garden');
                     break;
-                case 'View Map':
-                    await handleViewMap();
+                case 'View Gardens':
+                    await handleViewGardens();
                     break;
 
                 // Gardener actions
@@ -2430,6 +2430,23 @@
             ).join('\n');
 
             alert(`Your Plants (${userPlants.length}):\n\n${plantList}`);
+        }
+
+        async function handleViewGardens() {
+            await fetchGardens();
+
+            if (userGardens.length === 0) {
+                showToast('No gardens yet!');
+                return;
+            }
+
+            const gardenList = userGardens.map(g => {
+                const plantCount = g.plants?.length || 0;
+                const gardenType = g.garden_type || 'outdoor';
+                return `${g.name} (${gardenType}, ${plantCount} plants)`;
+            }).join('\n');
+
+            alert(`Your Gardens (${userGardens.length}):\n\n${gardenList}`);
         }
 
         async function handleSearchPlants() {
