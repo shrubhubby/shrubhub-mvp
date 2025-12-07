@@ -828,7 +828,7 @@
             animation: float 3s ease-in-out infinite;
         }
 
-        /* Undo toast */
+        /* Toast notification */
         .undo-toast {
             position: fixed;
             bottom: 80px;
@@ -836,12 +836,9 @@
             transform: translateX(-50%) translateY(100px);
             background: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 12px 24px;
-            border-radius: 24px;
+            padding: 16px 32px;
+            border-radius: 50px;
             font-size: 14px;
-            display: flex;
-            gap: 16px;
-            align-items: center;
             opacity: 0;
             transition: all 0.4s ease;
             z-index: 200;
@@ -850,19 +847,6 @@
         .undo-toast.active {
             opacity: 1;
             transform: translateX(-50%) translateY(0);
-        }
-
-        .undo-button {
-            background: transparent;
-            border: none;
-            color: #4caf50;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .undo-button:hover {
-            text-decoration: underline;
         }
 
         /* Beautiful Login Form Styles */
@@ -1315,10 +1299,9 @@
         </div>
     </div>
 
-    <!-- Undo toast -->
+    <!-- Toast notification -->
     <div class="undo-toast" id="undoToast">
         <span id="undoMessage">Action completed</span>
-        <button class="undo-button" onclick="handleUndo()">Undo</button>
     </div>
 
     <script>
@@ -1848,13 +1831,6 @@
             setTimeout(() => {
                 undoToast.classList.remove('active');
             }, 5000);
-        }
-
-        // Handle undo
-        function handleUndo() {
-            const undoToast = document.getElementById('undoToast');
-            undoToast.classList.remove('active');
-            console.log('Action undone');
         }
 
         // Set background gradient based on time of day
@@ -2515,6 +2491,7 @@
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
+            // Set Content-Type for POST/PUT requests with body
             if (options.body) {
                 headers['Content-Type'] = 'application/json';
             }
