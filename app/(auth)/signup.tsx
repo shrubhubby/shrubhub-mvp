@@ -31,7 +31,8 @@ export default function SignupScreen() {
 
       if (authError) throw authError
 
-      router.replace('/(tabs)')
+      // Redirect to conversational UI (main page at /)
+      window.location.href = '/'
     } catch (err: any) {
       setError(err.message || 'Failed to create account')
     } finally {

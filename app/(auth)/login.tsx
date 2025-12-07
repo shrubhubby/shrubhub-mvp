@@ -24,7 +24,8 @@ export default function LoginScreen() {
 
       if (error) throw error
 
-      router.replace('/(tabs)')
+      // Redirect to conversational UI (main page at /)
+      window.location.href = '/'
     } catch (err: any) {
       setError(err.message || 'Failed to login')
     } finally {
