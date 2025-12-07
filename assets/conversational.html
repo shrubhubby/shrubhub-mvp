@@ -2223,13 +2223,19 @@
         // Create a new garden
         async function createGarden(gardenData) {
             try {
+                console.log('createGarden called with:', gardenData);
+                console.log('Stringified body:', JSON.stringify(gardenData));
+
                 const response = await authenticatedFetch(`${API_BASE_URL}/gardens`, {
                     method: 'POST',
                     body: JSON.stringify(gardenData)
                 });
 
+                console.log('Garden creation response status:', response.status);
+
                 if (!response.ok) {
                     const error = await response.json();
+                    console.error('Garden creation failed:', error);
                     throw new Error(error.error || 'Failed to create garden');
                 }
 
@@ -2469,15 +2475,21 @@
         // Garden handlers
         async function handleAddGarden(type) {
             const name = prompt(`Name your new ${type}:`);
-            if (!name) return;
+            if (!name || name.trim() === '') {
+                showToast('Garden name is required');
+                return;
+            }
 
             const description = prompt('Description (optional):');
 
-            await createGarden({
-                name,
-                description: description || null,
+            const gardenData = {
+                name: name.trim(),
+                description: description?.trim() || null,
                 garden_type: type === 'site' ? 'outdoor' : 'indoor'
-            });
+            };
+
+            console.log('Creating garden with data:', gardenData);
+            await createGarden(gardenData);
         }
 
         async function handleViewMap() {
