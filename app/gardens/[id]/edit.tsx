@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { View, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase/client'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { GardenLocationPicker } from '@/components/map/GardenLocationPicker.web'
 
 const GARDEN_TYPES = [
   { value: 'indoor', label: 'Indoor', emoji: '🏠' },
@@ -19,6 +20,11 @@ const GARDEN_TYPES = [
   { value: 'mixed', label: 'Mixed', emoji: '🌿' },
 ]
 
+interface Coordinate {
+  latitude: number
+  longitude: number
+}
+
 export default function EditGardenScreen() {
   const { id } = useLocalSearchParams()
   const router = useRouter()
@@ -28,6 +34,74 @@ export default function EditGardenScreen() {
   const [gardenType, setGardenType] = useState('mixed')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
+  const [sites, setSites] = useState<any[]>([])
+  const [locationLat, setLocationLat] = useState<number | null>(null)
+  const [locationLng, setLocationLng] = useState<number | null>(null)
+  const [boundary, setBoundary] = useState<Coordinate[]>([])
+  const [initialLocation, setInitialLocation] = useState<{ latitude: number; longitude: number } | undefined>()
+  const [initialBoundary, setInitialBoundary] = useState<Coordinate[]>([])
+
+  useEffect(() => {
+    loadUserSites()
+  }, [])
+
+  const loadUserSites = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: gardener } = await supabase
+        .from('gardeners')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single()
+
+      if (!gardener) return
+
+      const { data: sitesData } = await supabase
+        .from('sites')
+        .select('id, name')
+        .eq('gardener_id', gardener.id)
+        .order('name')
+
+      if (sitesData) {
+        setSites(sitesData)
+      }
+    } catch (error) {
+      console.error('Error loading sites:', error)
+    }
+  }
+
+  const parseBoundaryFromWKT = (wkt: string): Coordinate[] => {
+    // Parse WKT format: POLYGON((lng lat, lng lat, ...))
+    const coordString = wkt.match(/\(\((.*?)\)\)/)?.[1]
+    if (!coordString) return []
+
+    const coords = coordString.split(',').map((pair: string) => {
+      const [lng, lat] = pair.trim().split(' ').map(Number)
+      return { latitude: lat, longitude: lng }
+    })
+
+    // Remove last coordinate if it's duplicate of first (closing the polygon)
+    if (coords.length > 1 &&
+        coords[0].latitude === coords[coords.length - 1].latitude &&
+        coords[0].longitude === coords[coords.length - 1].longitude) {
+      coords.pop()
+    }
+
+    return coords
+  }
+
+  const convertBoundaryToWKT = (coords: Coordinate[]): string | null => {
+    if (coords.length < 3) return null
+
+    // WKT format: POLYGON((lng lat, lng lat, ...))
+    // Need to close the polygon by repeating first point at the end
+    const coordStrings = coords.map(c => `${c.longitude} ${c.latitude}`)
+    coordStrings.push(coordStrings[0]) // Close the polygon
+    return `POLYGON((${coordStrings.join(', ')}))`
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -50,6 +124,24 @@ export default function EditGardenScreen() {
         setDescription(gardenData.description || '')
         setLocation(gardenData.location_description || '')
         setGardenType(gardenData.garden_type || 'mixed')
+        setSelectedSiteId(gardenData.site_id || null)
+        setLocationLat(gardenData.location_lat || null)
+        setLocationLng(gardenData.location_lng || null)
+
+        // Parse boundary if it exists
+        if (gardenData.boundary) {
+          const parsedBoundary = parseBoundaryFromWKT(gardenData.boundary)
+          setBoundary(parsedBoundary)
+          setInitialBoundary(parsedBoundary)
+        }
+
+        // Set initial location for map
+        if (gardenData.location_lat && gardenData.location_lng) {
+          setInitialLocation({
+            latitude: gardenData.location_lat,
+            longitude: gardenData.location_lng
+          })
+        }
       }
     } catch (error) {
       console.error('Error loading garden:', error)
@@ -67,6 +159,7 @@ export default function EditGardenScreen() {
 
     setIsSaving(true)
     try {
+      const boundaryWKT = convertBoundaryToWKT(boundary)
       const { error } = await supabase
         .from('gardens')
         .update({
@@ -74,6 +167,10 @@ export default function EditGardenScreen() {
           description: description.trim() || null,
           location_description: location.trim() || null,
           garden_type: gardenType,
+          site_id: selectedSiteId || null,
+          location_lat: locationLat,
+          location_lng: locationLng,
+          boundary: boundaryWKT,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
@@ -179,6 +276,57 @@ export default function EditGardenScreen() {
                 </View>
               </CardContent>
             </Card>
+
+            {/* Site Selection */}
+            {sites.length > 0 && (
+              <Card>
+                <CardContent className="gap-3">
+                  <Text className="text-sm font-medium text-coal">Site (Optional)</Text>
+                  <Text className="text-xs text-coal/60">
+                    Associate this garden with a site to share location and environmental data
+                  </Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    <Button
+                      variant={selectedSiteId === null ? 'primary' : 'outline'}
+                      size="sm"
+                      onPress={() => setSelectedSiteId(null)}
+                      className="flex-grow-0"
+                    >
+                      <Text className={selectedSiteId === null ? 'text-white' : 'text-coal'}>
+                        No Site
+                      </Text>
+                    </Button>
+                    {sites.map((site) => (
+                      <Button
+                        key={site.id}
+                        variant={selectedSiteId === site.id ? 'primary' : 'outline'}
+                        size="sm"
+                        onPress={() => setSelectedSiteId(site.id)}
+                        className="flex-grow-0"
+                      >
+                        <Text className={selectedSiteId === site.id ? 'text-white' : 'text-coal'}>
+                          {site.name}
+                        </Text>
+                      </Button>
+                    ))}
+                  </View>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Garden Location & Boundary */}
+            {typeof window !== 'undefined' && (
+              <GardenLocationPicker
+                siteId={selectedSiteId}
+                onLocationChange={(lat, lng) => {
+                  setLocationLat(lat)
+                  setLocationLng(lng)
+                }}
+                onBoundaryChange={setBoundary}
+                initialLocation={initialLocation}
+                initialBoundary={initialBoundary}
+              />
+            )}
           </View>
         </ScrollView>
 

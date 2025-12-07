@@ -1,0 +1,2464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShrubHub - Conversational UI Prototype</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Adaptive background with time-of-day gradient */
+        .background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 50%, #a5d6a7 100%);
+            transition: background 3s ease;
+            z-index: -1;
+        }
+
+        /* Corner navigation icons */
+        .corner-nav-item {
+            position: fixed;
+            font-size: 60px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-origin: center;
+            opacity: 0.6;
+            z-index: 150;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: scale(1);
+            /* Generous padding for easy hover detection */
+            padding: 25px;
+        }
+
+        .corner-nav-item:hover {
+            opacity: 1;
+        }
+
+        /* Corner icon labels - appear on hover */
+        .corner-nav-item::after {
+            content: attr(title);
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .corner-nav-item.top-left::after {
+            top: 100%;
+            left: 0;
+            margin-top: 12px;
+        }
+
+        .corner-nav-item.top-right::after {
+            top: 100%;
+            right: 0;
+            margin-top: 12px;
+        }
+
+        .corner-nav-item.bottom-left::after {
+            bottom: 100%;
+            left: 0;
+            margin-bottom: 12px;
+        }
+
+        .corner-nav-item.bottom-right::after {
+            bottom: 100%;
+            right: 0;
+            margin-bottom: 12px;
+        }
+
+        .corner-nav-item:hover::after {
+            opacity: 1;
+        }
+
+        /* Specific corner positions */
+        .corner-nav-item.top-left {
+            top: 20px;
+            left: 20px;
+        }
+
+        .corner-nav-item.top-right {
+            top: 20px;
+            right: 20px;
+        }
+
+        .corner-nav-item.bottom-left {
+            bottom: 20px;
+            left: 20px;
+        }
+
+        .corner-nav-item.bottom-right {
+            bottom: 20px;
+            right: 20px;
+        }
+
+        /* Preview panels - hidden for radial menu mockup */
+        .preview-panel {
+            display: none;
+        }
+
+        .preview-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2d4a2b;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .preview-item {
+            background: rgba(76, 175, 80, 0.05);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .preview-item:hover {
+            background: rgba(76, 175, 80, 0.15);
+            transform: translateX(4px);
+            z-index: 10;
+        }
+
+        .preview-item.has-subcategories:hover {
+            background: rgba(76, 175, 80, 0.2);
+        }
+
+        .preview-item:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Subcategory radial menu */
+        .subcategory-menu {
+            position: absolute;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .subcategory-menu.active {
+            pointer-events: all;
+        }
+
+        /* Connector bridges - invisible paths from corner icon to subcategory buttons */
+        .subcategory-connector {
+            position: fixed;
+            pointer-events: none;
+            background: transparent;
+            /* Debug: Uncomment to see connector channels */
+            /* background: rgba(255, 0, 0, 0.1); */
+            z-index: 140;
+            opacity: 0;
+        }
+
+        .subcategory-connector.active {
+            pointer-events: all;
+            opacity: 1;
+        }
+
+        .subcategory-item {
+            position: fixed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            cursor: pointer;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+            /* Generous padding creates large clickable area around icon */
+            padding: 20px;
+            /* Debug: Uncomment to see clickable area */
+            /* background: rgba(0, 255, 0, 0.1); */
+            /* Ensure above connectors */
+            z-index: 160;
+        }
+
+        .subcategory-item.active {
+            opacity: 0.8;
+            transform: translate(-50%, -50%) scale(1);
+            pointer-events: all;
+        }
+
+        .subcategory-item:hover {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.15);
+        }
+
+        .subcategory-label {
+            position: absolute;
+            left: 50%;
+            top: 79px;
+            transform: translateX(-50%);
+            color: #2d4a2b;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            pointer-events: none !important;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 1;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+        }
+
+        .subcategory-item.label-visible .subcategory-label {
+            opacity: 1;
+        }
+
+        .preview-thumbnail {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #81c784 0%, #66bb6a 100%);
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .preview-thumbnail.satellite {
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%2366bb6a" width="100" height="100"/><circle fill="%23388e3c" cx="30" cy="30" r="15"/><circle fill="%23388e3c" cx="70" cy="60" r="20"/><rect fill="%234caf50" x="10" y="70" width="80" height="5"/></svg>');
+            background-size: cover;
+        }
+
+        .preview-thumbnail.plant {
+            font-size: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-info {
+            flex: 1;
+        }
+
+        .preview-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d4a2b;
+            margin-bottom: 4px;
+        }
+
+        .preview-meta {
+            font-size: 13px;
+            color: #5a7658;
+        }
+
+        .preview-stat {
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        /* Activity list preview */
+        .activity-item {
+            background: rgba(76, 175, 80, 0.05);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .activity-item:hover {
+            background: rgba(76, 175, 80, 0.15);
+            transform: translateX(4px);
+            z-index: 10;
+        }
+
+        .activity-item.has-subcategories:hover {
+            background: rgba(76, 175, 80, 0.2);
+        }
+
+        .activity-icon {
+            font-size: 20px;
+        }
+
+        .activity-text {
+            flex: 1;
+            font-size: 14px;
+            color: #2d4a2b;
+        }
+
+        .activity-time {
+            font-size: 12px;
+            color: #5a7658;
+        }
+
+        /* Settings preview */
+        .settings-item {
+            background: rgba(76, 175, 80, 0.05);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .settings-item:hover {
+            background: rgba(76, 175, 80, 0.15);
+            z-index: 10;
+        }
+
+        .settings-item.has-subcategories:hover {
+            background: rgba(76, 175, 80, 0.2);
+        }
+
+        .settings-icon {
+            font-size: 24px;
+        }
+
+        .settings-label {
+            font-size: 15px;
+            font-weight: 500;
+            color: #2d4a2b;
+        }
+
+        /* Modal (expanded view) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            z-index: 500;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal {
+            position: fixed;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(40px);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 501;
+            overflow: hidden;
+        }
+
+        .modal.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(76, 175, 80, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2d4a2b;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 16px;
+            background: rgba(76, 175, 80, 0.1);
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: rgba(76, 175, 80, 0.2);
+            transform: scale(1.1);
+        }
+
+        .modal-content {
+            padding: 24px;
+            max-height: calc(80vh - 100px);
+            overflow-y: auto;
+        }
+
+        .modal-item {
+            background: rgba(76, 175, 80, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-item:hover {
+            background: rgba(76, 175, 80, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-thumbnail {
+            width: 100px;
+            height: 100px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #81c784 0%, #66bb6a 100%);
+            flex-shrink: 0;
+        }
+
+        .modal-thumbnail.satellite {
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%2366bb6a" width="100" height="100"/><circle fill="%23388e3c" cx="30" cy="30" r="15"/><circle fill="%23388e3c" cx="70" cy="60" r="20"/><rect fill="%234caf50" x="10" y="70" width="80" height="5"/></svg>');
+            background-size: cover;
+        }
+
+        .modal-info {
+            flex: 1;
+        }
+
+        .modal-item-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2d4a2b;
+            margin-bottom: 8px;
+        }
+
+        .modal-item-meta {
+            font-size: 15px;
+            color: #5a7658;
+            line-height: 1.6;
+        }
+
+        /* Main canvas area */
+        .canvas {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            cursor: text;
+            transition: opacity 0.4s ease;
+        }
+
+        /* Dynamic center message */
+        .center-message {
+            max-width: 600px;
+            text-align: center;
+            font-size: 28px;
+            line-height: 1.6;
+            color: #2d4a2b;
+            font-weight: 500;
+            opacity: 1;
+            transition: all 0.5s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .center-message.fade {
+            opacity: 0.2;
+            font-size: 20px;
+        }
+
+        .center-message.hidden {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Input area (appears on activation) */
+        .input-container {
+            max-width: 700px;
+            width: 100%;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s ease;
+            pointer-events: none;
+        }
+
+        .input-container.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        .input-field {
+            width: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-size: 32px;
+            color: #1a3a1a;
+            text-align: center;
+            font-weight: 400;
+            padding: 20px;
+            font-family: inherit;
+            caret-color: #4caf50;
+        }
+
+        .input-field::placeholder {
+            color: rgba(45, 74, 43, 0.3);
+        }
+
+        /* Thinking state */
+        .thinking {
+            max-width: 600px;
+            text-align: center;
+            font-size: 24px;
+            color: #4caf50;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+        }
+
+        .thinking.active {
+            opacity: 1;
+        }
+
+        .thinking-dots {
+            display: inline-block;
+            animation: ellipsis 1.5s infinite;
+        }
+
+        @keyframes ellipsis {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+
+        /* Response card */
+        .response-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            opacity: 0;
+            transform: scale(0.9) translateY(20px);
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+        }
+
+        .response-card.active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            pointer-events: all;
+        }
+
+        .response-card.fading {
+            opacity: 0.4;
+            transform: scale(0.98) translateY(-10px);
+        }
+
+        .response-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+
+        .response-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2d4a2b;
+            margin-bottom: 8px;
+        }
+
+        .response-subtitle {
+            font-size: 16px;
+            color: #5a7658;
+            margin-bottom: 20px;
+        }
+
+        .response-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .response-button {
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .response-button.primary {
+            background: #4caf50;
+            color: white;
+        }
+
+        .response-button.secondary {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4caf50;
+        }
+
+        .response-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+
+        /* Plant list example */
+        .plant-list {
+            list-style: none;
+            margin: 16px 0;
+            text-align: left;
+        }
+
+        .plant-list li {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: rgba(76, 175, 80, 0.05);
+            color: #2d4a2b;
+            font-size: 16px;
+        }
+
+        /* Helper text */
+        .helper-text {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: rgba(45, 74, 43, 0.4);
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .helper-text.hidden {
+            opacity: 0;
+        }
+
+        /* Voice input button - shown inline with input */
+        .voice-button {
+            width: 56px;
+            height: 56px;
+            border-radius: 28px;
+            background: linear-gradient(135deg, #66bb6a 0%, #4caf50 100%);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 4px 16px rgba(76, 175, 80, 0.3);
+            margin-left: 16px;
+        }
+
+        .voice-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .voice-button.listening {
+            background: linear-gradient(135deg, #ef5350 0%, #e53935 100%);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(239, 83, 80, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 20px rgba(239, 83, 80, 0);
+            }
+        }
+
+        /* Input controls container */
+        .input-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 24px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s ease;
+            pointer-events: none;
+        }
+
+        .input-controls.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        /* Waveform container */
+        .waveform-container {
+            position: fixed;
+            left: 50%;
+            top: 40%;
+            transform: translateX(-50%) translateY(-50%);
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            height: 80px;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+            z-index: 200;
+        }
+
+        .waveform-container.active {
+            opacity: 1;
+        }
+
+        .waveform-bar {
+            width: 4px;
+            background: linear-gradient(180deg, #66bb6a 0%, #4caf50 100%);
+            border-radius: 2px;
+            height: 20px;
+            animation: wave 1.2s ease-in-out infinite;
+        }
+
+        .waveform-bar:nth-child(1) { animation-delay: 0s; }
+        .waveform-bar:nth-child(2) { animation-delay: 0.1s; }
+        .waveform-bar:nth-child(3) { animation-delay: 0.2s; }
+        .waveform-bar:nth-child(4) { animation-delay: 0.3s; }
+        .waveform-bar:nth-child(5) { animation-delay: 0.4s; }
+        .waveform-bar:nth-child(6) { animation-delay: 0.5s; }
+        .waveform-bar:nth-child(7) { animation-delay: 0.4s; }
+        .waveform-bar:nth-child(8) { animation-delay: 0.3s; }
+        .waveform-bar:nth-child(9) { animation-delay: 0.2s; }
+        .waveform-bar:nth-child(10) { animation-delay: 0.1s; }
+
+        @keyframes wave {
+            0%, 100% {
+                height: 20px;
+            }
+            50% {
+                height: 60px;
+            }
+        }
+
+        /* Transcript display */
+        .voice-transcript {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translateX(-50%) translateY(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(30px);
+            border-radius: 20px;
+            padding: 24px 32px;
+            max-width: 600px;
+            text-align: center;
+            font-size: 24px;
+            color: #2d4a2b;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            transform: translateX(-50%) translateY(-40%);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+            z-index: 201;
+        }
+
+        .voice-transcript.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-50%);
+        }
+
+        .voice-hint {
+            font-size: 14px;
+            color: #5a7658;
+            margin-top: 12px;
+            font-style: italic;
+        }
+
+        /* Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Undo toast */
+        .undo-toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 200;
+        }
+
+        .undo-toast.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .undo-button {
+            background: transparent;
+            border: none;
+            color: #4caf50;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .undo-button:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <!-- Adaptive background -->
+    <div class="background" id="background"></div>
+
+    <!-- Corner navigation icons -->
+    <div class="corner-nav-item top-left" data-section="activity" title="Activity">
+        📊
+    </div>
+
+    <div class="corner-nav-item top-right" data-section="plants" title="Plants">
+        🌿
+    </div>
+
+    <div class="corner-nav-item bottom-left" data-section="locations" title="Sites & Gardens">
+        🏡
+    </div>
+
+    <div class="corner-nav-item bottom-right" data-section="gardener" title="Gardener Profile">
+        👤
+    </div>
+
+    <!-- Main canvas -->
+    <div class="canvas" id="canvas">
+        <!-- Dynamic center message -->
+        <div class="center-message floating" id="centerMessage">
+            Your basil hasn't been watered in 3 days 💧
+        </div>
+
+        <!-- Input field (hidden initially) -->
+        <div class="input-container" id="inputContainer">
+            <input
+                type="text"
+                class="input-field"
+                id="inputField"
+                placeholder="What's happening in the garden?"
+                onkeypress="handleInput(event)"
+            />
+        </div>
+
+        <!-- Input controls (voice button, etc.) -->
+        <div class="input-controls" id="inputControls">
+            <button class="voice-button" id="voiceButton" title="Speak your message">
+                🎤
+            </button>
+        </div>
+
+        <!-- Thinking state -->
+        <div class="thinking" id="thinking">
+            Checking the soil<span class="thinking-dots">...</span>
+        </div>
+
+        <!-- Response card (hidden initially) -->
+        <div class="response-card" id="responseCard">
+            <!-- Content will be injected by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Helper text -->
+    <div class="helper-text" id="helperText">
+        Tap anywhere or press Enter to respond
+    </div>
+
+    <!-- Waveform visualization -->
+    <div class="waveform-container" id="waveformContainer">
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+    </div>
+
+    <!-- Voice transcript display -->
+    <div class="voice-transcript" id="voiceTranscript">
+        <div id="transcriptText">Start speaking...</div>
+        <div class="voice-hint">Your words will appear here</div>
+    </div>
+
+    <!-- Preview panels -->
+    <div class="preview-panel top-left" id="preview-activity">
+        <div class="preview-title">Recent Activity</div>
+        <div class="activity-item">
+            <div class="activity-icon">💧</div>
+            <div class="activity-text">Watered 3 plants</div>
+            <div class="activity-time">2h ago</div>
+        </div>
+        <div class="activity-item">
+            <div class="activity-icon">🌱</div>
+            <div class="activity-text">Added Snake Plant</div>
+            <div class="activity-time">1d ago</div>
+        </div>
+        <div class="activity-item">
+            <div class="activity-icon">✂️</div>
+            <div class="activity-text">Pruned Basil</div>
+            <div class="activity-time">3d ago</div>
+        </div>
+    </div>
+
+    <div class="preview-panel top-right" id="preview-plants">
+        <div class="preview-title">Your Plants</div>
+        <div class="preview-item">
+            <div class="preview-thumbnail plant">🌿</div>
+            <div class="preview-info">
+                <div class="preview-name">Basil</div>
+                <div class="preview-meta">
+                    <span class="preview-stat">Herb Garden</span>
+                    <span class="preview-stat">Needs water</span>
+                </div>
+            </div>
+        </div>
+        <div class="preview-item">
+            <div class="preview-thumbnail plant">🍅</div>
+            <div class="preview-info">
+                <div class="preview-name">Beefsteak Tomato</div>
+                <div class="preview-meta">
+                    <span class="preview-stat">Vegetable Patch</span>
+                    <span class="preview-stat">Healthy</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="preview-panel bottom-left" id="preview-locations">
+        <div class="preview-title">Sites & Gardens</div>
+        <div class="preview-item">
+            <div class="preview-thumbnail satellite"></div>
+            <div class="preview-info">
+                <div class="preview-name">Backyard Garden</div>
+                <div class="preview-meta">
+                    <span class="preview-stat">3 gardens</span>
+                    <span class="preview-stat">850 sq ft</span>
+                    <span class="preview-stat">72°F</span>
+                </div>
+            </div>
+        </div>
+        <div class="preview-item">
+            <div class="preview-thumbnail satellite"></div>
+            <div class="preview-info">
+                <div class="preview-name">Community Plot</div>
+                <div class="preview-meta">
+                    <span class="preview-stat">1 garden</span>
+                    <span class="preview-stat">200 sq ft</span>
+                    <span class="preview-stat">68°F</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="preview-panel bottom-right" id="preview-gardener">
+        <div class="preview-title">Gardener</div>
+        <div class="settings-item">
+            <div class="settings-icon">⚙️</div>
+            <div class="settings-label">Settings & Preferences</div>
+        </div>
+        <div class="settings-item">
+            <div class="settings-icon">👥</div>
+            <div class="settings-label">Social & Friends</div>
+        </div>
+        <div class="settings-item">
+            <div class="settings-icon">🏆</div>
+            <div class="settings-label">Achievements</div>
+        </div>
+        <div class="settings-item">
+            <div class="settings-icon">📈</div>
+            <div class="settings-label">Your Stats</div>
+        </div>
+    </div>
+
+    <!-- Modal overlay -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-header">
+            <div class="modal-title" id="modalTitle">Activity</div>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-content" id="modalContent">
+            <!-- Content will be injected by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Undo toast -->
+    <div class="undo-toast" id="undoToast">
+        <span id="undoMessage">Action completed</span>
+        <button class="undo-button" onclick="handleUndo()">Undo</button>
+    </div>
+
+    <script>
+        // State management
+        let currentState = 'idle'; // idle, input, thinking, response
+        let messageIndex = 0;
+        let messageTimer;
+        let currentSection = null;
+        let modalOrigin = { x: 0, y: 0, width: 0, height: 0 };
+        let recognition = null;
+        let isVoiceActive = false;
+
+        // Dynamic messages that rotate in idle state
+        const dynamicMessages = [
+            "Your basil hasn't been watered in 3 days 💧",
+            "Perfect weather for repotting today (65°F, cloudy) 🌤️",
+            "Your tomatoes grew 2 inches since last week! 📈",
+            "Good morning! What's happening in the garden today? ☀️",
+            "The best fertilizer is the gardener's shadow 🌿",
+            "It's been a week since you checked on the greenhouse 🏡"
+        ];
+
+        // Sample data for modals
+        const modalData = {
+            activity: [
+                { icon: '💧', text: 'Watered 3 plants in Backyard Garden', time: '2h ago' },
+                { icon: '🌱', text: 'Added Snake Plant to Living Room', time: '1d ago' },
+                { icon: '✂️', text: 'Pruned Basil in Herb Garden', time: '3d ago' },
+                { icon: '📦', text: 'Repotted Fiddle Leaf Fig', time: '5d ago' },
+                { icon: '🌿', text: 'Added fertilizer to tomatoes', time: '1w ago' },
+                { icon: '📸', text: 'Took photo of monstera growth', time: '1w ago' },
+            ],
+            plants: [
+                { name: 'Basil', garden: 'Herb Garden', status: 'Needs watering', health: 'Good', icon: '🌿' },
+                { name: 'Beefsteak Tomato', garden: 'Vegetable Patch', status: 'Healthy', health: 'Excellent', icon: '🍅' },
+                { name: 'Snake Plant', garden: 'Living Room', status: 'Thriving', health: 'Excellent', icon: '🌱' },
+                { name: 'Fiddle Leaf Fig', garden: 'Living Room', status: 'Needs attention', health: 'Fair', icon: '🌳' },
+                { name: 'Monstera', garden: 'Bedroom', status: 'Growing well', health: 'Good', icon: '🍃' },
+            ],
+            locations: [
+                { name: 'Backyard Garden', gardens: 3, plants: 12, sqft: 850, temp: '72°F', humidity: '65%', light: 'Full Sun' },
+                { name: 'Community Plot', gardens: 1, plants: 8, sqft: 200, temp: '68°F', humidity: '70%', light: 'Partial Sun' },
+                { name: 'Rooftop Terrace', gardens: 2, plants: 6, sqft: 120, temp: '75°F', humidity: '55%', light: 'Full Sun' }
+            ],
+            gardener: [
+                { icon: '⚙️', label: 'Settings & Preferences', description: 'Manage your app settings' },
+                { icon: '👥', label: 'Social & Friends', description: 'Connect with other gardeners' },
+                { icon: '🏆', label: 'Achievements', description: 'View your gardening milestones' },
+                { icon: '📈', label: 'Your Stats', description: 'Track your gardening journey' },
+                { icon: '🔔', label: 'Notifications', description: 'Manage alerts and reminders' },
+                { icon: '💬', label: 'Feedback', description: 'Share your thoughts with us' },
+            ]
+        };
+
+        // Sample responses for demo
+        const responses = {
+            'watered': {
+                icon: '✓',
+                title: 'Watered 3 plants in Backyard Garden',
+                subtitle: 'Next watering: Sunday morning',
+                actions: ['undo', 'details']
+            },
+            'new plant': {
+                icon: '🌿',
+                title: 'Nice! Where should I add it?',
+                content: 'plant-list',
+                actions: ['living-room', 'create-new']
+            },
+            'problem': {
+                icon: '🔍',
+                title: 'Looks like spider mites on your pothos',
+                subtitle: 'Common on pothos when air is dry',
+                content: 'treatment',
+                actions: ['log-treatment', 'more-info']
+            },
+            'default': {
+                icon: '💚',
+                title: 'I can help with that!',
+                subtitle: 'Try: "watered", "new plant", or "problem"',
+                actions: ['okay']
+            }
+        };
+
+        // Subcategory definitions for each corner icon section
+        const cornerSubcategories = {
+            'activity': [
+                { icon: '💧', label: 'Log Watering' },
+                { icon: '🌱', label: 'Log Feeding' },
+                { icon: '✂️', label: 'Log Pruning' }
+            ],
+            'plants': [
+                { icon: '🌱', label: 'Add Plant' },
+                { icon: '👁️', label: 'View All' },
+                { icon: '🔍', label: 'Search' }
+            ],
+            'locations': [
+                { icon: '🏡', label: 'Add Site' },
+                { icon: '🌳', label: 'Add Garden' },
+                { icon: '🗺️', label: 'View Map' }
+            ],
+            'gardener': [
+                { icon: '⚙️', label: 'Settings' },
+                { icon: '👥', label: 'Social' },
+                { icon: '🏆', label: 'Achievements' }
+            ]
+        };
+
+        // Initialize
+        startMessageRotation();
+        setBackgroundGradient();
+        initCornerNav();
+        initVoiceRecognition();
+        initGlobalListeners();
+        initSubcategoryMenus();
+
+        // Initialize corner navigation with proximity effects
+        function initCornerNav() {
+            const navItems = document.querySelectorAll('.corner-nav-item');
+
+            // Proximity effect on mouse move - subtle scale on icons
+            document.addEventListener('mousemove', (e) => {
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+
+                navItems.forEach(item => {
+                    const itemRect = item.getBoundingClientRect();
+                    const itemCenterX = itemRect.left + itemRect.width / 2;
+                    const itemCenterY = itemRect.top + itemRect.height / 2;
+
+                    // Calculate distance from mouse to icon center
+                    const distanceX = mouseX - itemCenterX;
+                    const distanceY = mouseY - itemCenterY;
+                    const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+                    const maxDistance = 210;
+
+                    // Calculate scale based on proximity (1.0 to 1.1) - only 10% growth
+                    if (distance < maxDistance) {
+                        const scale = 1.0 + (0.1 * (1 - distance / maxDistance));
+                        item.style.transform = `scale(${scale})`;
+                    } else {
+                        item.style.transform = 'scale(1)';
+                    }
+                });
+            });
+
+            // Click to open modal
+            navItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    const section = item.getAttribute('data-section');
+                    openModal(section, item);
+                });
+            });
+        }
+
+        function openModal(section, originElement) {
+            currentSection = section;
+
+            // Get origin position for animation
+            const rect = originElement.getBoundingClientRect();
+            modalOrigin = {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2,
+                width: rect.width,
+                height: rect.height
+            };
+
+            const modal = document.getElementById('modal');
+            const modalOverlay = document.getElementById('modalOverlay');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+            const canvas = document.getElementById('canvas');
+
+            // Set modal title
+            const titles = {
+                activity: 'Activity',
+                plants: 'Plants',
+                locations: 'Sites & Gardens',
+                gardener: 'Gardener Profile'
+            };
+            modalTitle.textContent = titles[section] || section;
+
+            // Build modal content
+            let content = '';
+
+            if (section === 'activity') {
+                modalData.activity.forEach(activity => {
+                    content += `
+                        <div class="modal-item" style="display: flex; align-items: center; gap: 16px;">
+                            <div style="font-size: 32px;">${activity.icon}</div>
+                            <div class="modal-info" style="flex: 1;">
+                                <div class="modal-item-name" style="font-size: 18px;">${activity.text}</div>
+                            </div>
+                            <div style="color: #5a7658; font-size: 14px;">${activity.time}</div>
+                        </div>
+                    `;
+                });
+            } else if (section === 'plants') {
+                modalData.plants.forEach(plant => {
+                    content += `
+                        <div class="modal-item">
+                            <div class="modal-thumbnail" style="display: flex; align-items: center; justify-content: center; font-size: 48px;">${plant.icon}</div>
+                            <div class="modal-info">
+                                <div class="modal-item-name">${plant.name}</div>
+                                <div class="modal-item-meta">
+                                    ${plant.garden} • ${plant.status} • Health: ${plant.health}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else if (section === 'locations') {
+                modalData.locations.forEach(location => {
+                    content += `
+                        <div class="modal-item">
+                            <div class="modal-thumbnail satellite"></div>
+                            <div class="modal-info">
+                                <div class="modal-item-name">${location.name}</div>
+                                <div class="modal-item-meta">
+                                    ${location.gardens} gardens • ${location.plants} plants • ${location.sqft} sq ft<br>
+                                    ${location.temp} • ${location.humidity} humidity • ${location.light}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else if (section === 'gardener') {
+                modalData.gardener.forEach(item => {
+                    content += `
+                        <div class="modal-item">
+                            <div style="font-size: 48px;">${item.icon}</div>
+                            <div class="modal-info">
+                                <div class="modal-item-name">${item.label}</div>
+                                <div class="modal-item-meta">${item.description}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            modalContent.innerHTML = content;
+
+            // Hide the center canvas (prompt area)
+            canvas.style.opacity = '0';
+            canvas.style.pointerEvents = 'none';
+
+            // Animate from icon position
+            modal.style.left = modalOrigin.x + 'px';
+            modal.style.top = modalOrigin.y + 'px';
+            modal.style.width = modalOrigin.width + 'px';
+            modal.style.height = modalOrigin.height + 'px';
+            modal.style.borderRadius = '50%';
+
+            // Show overlay and modal
+            modalOverlay.classList.add('active');
+            modal.classList.add('active');
+
+            // Animate to center of screen
+            setTimeout(() => {
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                const modalWidth = Math.min(900, window.innerWidth * 0.9);
+                const modalHeight = Math.min(700, window.innerHeight * 0.85);
+
+                modal.style.left = (centerX - modalWidth / 2) + 'px';
+                modal.style.top = (centerY - modalHeight / 2) + 'px';
+                modal.style.width = modalWidth + 'px';
+                modal.style.height = modalHeight + 'px';
+                modal.style.borderRadius = '24px';
+            }, 50);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            const modalOverlay = document.getElementById('modalOverlay');
+            const canvas = document.getElementById('canvas');
+
+            // Animate back to origin
+            modal.style.left = modalOrigin.x + 'px';
+            modal.style.top = modalOrigin.y + 'px';
+            modal.style.width = modalOrigin.width + 'px';
+            modal.style.height = modalOrigin.height + 'px';
+            modal.style.borderRadius = '50%';
+
+            // Restore the center canvas
+            canvas.style.opacity = '1';
+            canvas.style.pointerEvents = 'all';
+
+            setTimeout(() => {
+                modal.classList.remove('active');
+                modalOverlay.classList.remove('active');
+            }, 500);
+        }
+
+        // Rotate dynamic messages
+        function startMessageRotation() {
+            messageTimer = setInterval(() => {
+                if (currentState === 'idle') {
+                    messageIndex = (messageIndex + 1) % dynamicMessages.length;
+                    updateCenterMessage(dynamicMessages[messageIndex]);
+                }
+            }, 8000);
+        }
+
+        function updateCenterMessage(text) {
+            const message = document.getElementById('centerMessage');
+            message.style.opacity = 0;
+            setTimeout(() => {
+                message.textContent = text;
+                message.style.opacity = 1;
+            }, 500);
+        }
+
+        // Activate input on click
+        function activateInput(event) {
+            if (currentState !== 'idle') return;
+
+            currentState = 'input';
+
+            const centerMessage = document.getElementById('centerMessage');
+            const inputContainer = document.getElementById('inputContainer');
+            const inputControls = document.getElementById('inputControls');
+            const inputField = document.getElementById('inputField');
+            const helperText = document.getElementById('helperText');
+
+            centerMessage.classList.add('fade');
+            inputContainer.classList.add('active');
+            inputControls.classList.add('active');
+            helperText.classList.add('hidden');
+
+            setTimeout(() => {
+                inputField.focus();
+            }, 100);
+        }
+
+        // Handle input submission
+        function handleInput(event) {
+            if (event.key !== 'Enter') return;
+
+            const inputField = document.getElementById('inputField');
+            const userInput = inputField.value.trim().toLowerCase();
+
+            if (!userInput) return;
+
+            // Transition to thinking state
+            currentState = 'thinking';
+            showThinking();
+
+            // Simulate AI processing
+            setTimeout(() => {
+                let responseType = 'default';
+                if (userInput.includes('water')) responseType = 'watered';
+                else if (userInput.includes('new') || userInput.includes('plant')) responseType = 'new plant';
+                else if (userInput.includes('problem') || userInput.includes('yellow') || userInput.includes('sick')) responseType = 'problem';
+
+                showResponse(responses[responseType]);
+                inputField.value = '';
+            }, 2000);
+        }
+
+        // Show thinking animation
+        function showThinking() {
+            const centerMessage = document.getElementById('centerMessage');
+            const inputContainer = document.getElementById('inputContainer');
+            const thinking = document.getElementById('thinking');
+
+            centerMessage.classList.add('hidden');
+            inputContainer.classList.remove('active');
+            thinking.classList.add('active');
+
+            // Vary thinking message
+            const thinkingMessages = [
+                'Checking the soil...',
+                'Consulting the almanac...',
+                'Asking the bees...',
+                'Looking through the garden...'
+            ];
+            thinking.innerHTML = thinkingMessages[Math.floor(Math.random() * thinkingMessages.length)] + '<span class="thinking-dots">...</span>';
+        }
+
+        // Show response card
+        function showResponse(response) {
+            currentState = 'response';
+
+            const thinking = document.getElementById('thinking');
+            const responseCard = document.getElementById('responseCard');
+
+            thinking.classList.remove('active');
+
+            // Build response content
+            let content = `
+                <div class="response-icon">${response.icon}</div>
+                <div class="response-title">${response.title}</div>
+            `;
+
+            if (response.subtitle) {
+                content += `<div class="response-subtitle">${response.subtitle}</div>`;
+            }
+
+            if (response.content === 'plant-list') {
+                content += `
+                    <ul class="plant-list">
+                        <li>🏠 Living Room Garden</li>
+                        <li>🌳 Backyard Garden</li>
+                        <li>🪟 Bedroom Window</li>
+                    </ul>
+                    <div style="text-align: center; color: #5a7658; font-size: 14px; margin-top: 8px;">
+                        or just tell me where
+                    </div>
+                `;
+            } else if (response.content === 'treatment') {
+                content += `
+                    <ul class="plant-list">
+                        <li>• Spray with neem oil</li>
+                        <li>• Increase humidity</li>
+                        <li>• Isolate from other plants</li>
+                    </ul>
+                `;
+            }
+
+            if (response.actions) {
+                content += `<div class="response-actions">`;
+                response.actions.forEach(action => {
+                    const labels = {
+                        'undo': 'Undo',
+                        'details': 'See Details',
+                        'living-room': 'Living Room',
+                        'create-new': 'Create New',
+                        'log-treatment': 'Log Treatment',
+                        'more-info': 'More Info',
+                        'okay': 'Got it'
+                    };
+                    const type = ['undo', 'details', 'more-info'].includes(action) ? 'secondary' : 'primary';
+                    content += `<button class="response-button ${type}" onclick="handleAction('${action}')">${labels[action]}</button>`;
+                });
+                content += `</div>`;
+            }
+
+            responseCard.innerHTML = content;
+            responseCard.classList.add('active');
+
+            // Show undo toast for certain actions
+            if (response.icon === '✓') {
+                showUndoToast('Watered 3 plants in Backyard Garden');
+            }
+
+            // Auto-fade and return to idle after 5 seconds
+            setTimeout(() => {
+                responseCard.classList.add('fading');
+                setTimeout(() => {
+                    resetToIdle();
+                }, 2000);
+            }, 5000);
+        }
+
+        // Handle action button clicks
+        function handleAction(action) {
+            console.log('Action:', action);
+            resetToIdle();
+        }
+
+        // Reset to idle state
+        function resetToIdle() {
+            currentState = 'idle';
+
+            const centerMessage = document.getElementById('centerMessage');
+            const inputContainer = document.getElementById('inputContainer');
+            const inputControls = document.getElementById('inputControls');
+            const thinking = document.getElementById('thinking');
+            const responseCard = document.getElementById('responseCard');
+            const helperText = document.getElementById('helperText');
+
+            centerMessage.classList.remove('fade', 'hidden');
+            inputContainer.classList.remove('active');
+            inputControls.classList.remove('active');
+            thinking.classList.remove('active');
+            responseCard.classList.remove('active', 'fading');
+            helperText.classList.remove('hidden');
+
+            // Update to next message
+            messageIndex = (messageIndex + 1) % dynamicMessages.length;
+            centerMessage.textContent = dynamicMessages[messageIndex];
+        }
+
+        // Show undo toast
+        function showUndoToast(message) {
+            const undoToast = document.getElementById('undoToast');
+            const undoMessage = document.getElementById('undoMessage');
+
+            undoMessage.textContent = message;
+            undoToast.classList.add('active');
+
+            setTimeout(() => {
+                undoToast.classList.remove('active');
+            }, 5000);
+        }
+
+        // Handle undo
+        function handleUndo() {
+            const undoToast = document.getElementById('undoToast');
+            undoToast.classList.remove('active');
+            console.log('Action undone');
+        }
+
+        // Set background gradient based on time of day
+        function setBackgroundGradient() {
+            const hour = new Date().getHours();
+            const background = document.getElementById('background');
+
+            let gradient;
+            if (hour >= 5 && hour < 12) {
+                // Morning - bright greens
+                gradient = 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 50%, #a5d6a7 100%)';
+            } else if (hour >= 12 && hour < 17) {
+                // Afternoon - golden
+                gradient = 'linear-gradient(135deg, #fff9c4 0%, #f0f4c3 50%, #dce775 100%)';
+            } else if (hour >= 17 && hour < 20) {
+                // Evening - warm amber
+                gradient = 'linear-gradient(135deg, #ffe0b2 0%, #ffcc80 50%, #ffb74d 100%)';
+            } else {
+                // Night - cool blues
+                gradient = 'linear-gradient(135deg, #bbdefb 0%, #90caf9 90%, #64b5f6 100%)';
+            }
+
+            background.style.background = gradient;
+        }
+
+        // Update gradient every 30 minutes
+        setInterval(setBackgroundGradient, 1800000);
+
+        // Initialize voice recognition
+        function initVoiceRecognition() {
+            // Check for Web Speech API support
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+                console.log('Speech recognition not supported');
+                const voiceButton = document.getElementById('voiceButton');
+                if (voiceButton) voiceButton.style.display = 'none';
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                isVoiceActive = true;
+                const voiceButton = document.getElementById('voiceButton');
+                const waveformContainer = document.getElementById('waveformContainer');
+                const voiceTranscript = document.getElementById('voiceTranscript');
+                const inputContainer = document.getElementById('inputContainer');
+                const inputControls = document.getElementById('inputControls');
+
+                voiceButton.classList.add('listening');
+                waveformContainer.classList.add('active');
+                voiceTranscript.classList.add('active');
+
+                // Hide input field while voice is active for cleaner look
+                inputContainer.style.opacity = '0.3';
+                inputControls.style.opacity = '0.3';
+            };
+
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+
+                // Update transcript display
+                const transcriptText = document.getElementById('transcriptText');
+                if (transcript) {
+                    transcriptText.textContent = transcript;
+                } else {
+                    transcriptText.textContent = 'Start speaking...';
+                }
+
+                // Also update input field
+                const inputField = document.getElementById('inputField');
+                if (inputField) {
+                    inputField.value = transcript;
+                }
+            };
+
+            recognition.onend = () => {
+                isVoiceActive = false;
+                const voiceButton = document.getElementById('voiceButton');
+                const waveformContainer = document.getElementById('waveformContainer');
+                const voiceTranscript = document.getElementById('voiceTranscript');
+                const inputContainer = document.getElementById('inputContainer');
+                const inputControls = document.getElementById('inputControls');
+                const inputField = document.getElementById('inputField');
+
+                voiceButton.classList.remove('listening');
+                waveformContainer.classList.remove('active');
+
+                // Restore input visibility
+                inputContainer.style.opacity = '1';
+                inputControls.style.opacity = '1';
+
+                // If we have text, hide transcript and keep input active
+                if (inputField && inputField.value.trim()) {
+                    voiceTranscript.classList.remove('active');
+                    inputField.focus();
+                } else {
+                    // No text captured, hide transcript and return to idle
+                    setTimeout(() => {
+                        voiceTranscript.classList.remove('active');
+                    }, 300);
+                    if (currentState === 'input') {
+                        resetToIdle();
+                    }
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                isVoiceActive = false;
+                const voiceButton = document.getElementById('voiceButton');
+                const waveformContainer = document.getElementById('waveformContainer');
+                const voiceTranscript = document.getElementById('voiceTranscript');
+                const transcriptText = document.getElementById('transcriptText');
+                const inputContainer = document.getElementById('inputContainer');
+                const inputControls = document.getElementById('inputControls');
+
+                voiceButton.classList.remove('listening');
+                waveformContainer.classList.remove('active');
+
+                // Restore input visibility
+                inputContainer.style.opacity = '1';
+                inputControls.style.opacity = '1';
+
+                transcriptText.textContent = 'Error: ' + event.error;
+                setTimeout(() => {
+                    voiceTranscript.classList.remove('active');
+                }, 2000);
+            };
+
+            // Voice button click handler
+            const voiceButton = document.getElementById('voiceButton');
+            voiceButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleVoiceInput();
+            });
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) return;
+
+            if (isVoiceActive) {
+                recognition.stop();
+            } else {
+                // Activate input mode first if not already active
+                if (currentState === 'idle') {
+                    activateInputSilent();
+                }
+                recognition.start();
+            }
+        }
+
+        // Initialize global listeners for click and keyboard
+        function initGlobalListeners() {
+            // Global click handler - activate prompt anywhere except corners/modals
+            document.addEventListener('click', (e) => {
+                // Don't activate if clicking on specific elements
+                const clickedElement = e.target;
+                const isCornerNav = clickedElement.closest('.corner-nav-item');
+                const isPreview = clickedElement.closest('.preview-panel');
+                const isModal = clickedElement.closest('.modal');
+                const isModalOverlay = clickedElement.classList.contains('modal-overlay');
+                const isVoiceButton = clickedElement.closest('.voice-button');
+                const isInput = clickedElement.closest('.input-field');
+                const isButton = clickedElement.tagName === 'BUTTON';
+
+                // If clicking on any of these, don't activate prompt
+                if (isCornerNav || isPreview || isModal || isVoiceButton || isInput || isButton) {
+                    return;
+                }
+
+                // If modal is open and clicking overlay, close it instead
+                if (isModalOverlay) {
+                    closeModal();
+                    return;
+                }
+
+                // If modal is open, don't activate prompt
+                const modal = document.getElementById('modal');
+                if (modal && modal.classList.contains('active')) {
+                    return;
+                }
+
+                // Activate prompt if in idle state
+                if (currentState === 'idle') {
+                    activateInput(e);
+                }
+            });
+
+            // Global keyboard handler
+            document.addEventListener('keydown', (e) => {
+                // Enter key activates prompt if in idle state
+                if (e.key === 'Enter' && currentState === 'idle') {
+                    activateInput(e);
+                    e.preventDefault();
+                }
+
+                // Escape key closes modal or returns to idle
+                if (e.key === 'Escape') {
+                    const modal = document.getElementById('modal');
+                    if (modal && modal.classList.contains('active')) {
+                        closeModal();
+                    } else if (currentState !== 'idle') {
+                        resetToIdle();
+                    }
+                    e.preventDefault();
+                }
+            });
+
+            // Capture Android/iOS voice input intents if available
+            // This would typically be handled by the mobile app wrapper
+            if ('speechSynthesis' in window) {
+                // Voice synthesis available - could be used for responses
+            }
+        }
+
+        // Activate input without visual effects (for voice)
+        function activateInputSilent() {
+            currentState = 'input';
+
+            const centerMessage = document.getElementById('centerMessage');
+            const inputContainer = document.getElementById('inputContainer');
+            const inputControls = document.getElementById('inputControls');
+            const helperText = document.getElementById('helperText');
+
+            centerMessage.classList.add('fade');
+            inputContainer.classList.add('active');
+            inputControls.classList.add('active');
+            helperText.classList.add('hidden');
+        }
+
+        // Initialize subcategory radial menus for corner navigation icons
+        function initSubcategoryMenus() {
+            const cornerNavItems = document.querySelectorAll('.corner-nav-item');
+
+            console.log('Initializing subcategory menus for corner icons:', cornerNavItems.length);
+
+            cornerNavItems.forEach(navItem => {
+                const section = navItem.getAttribute('data-section');
+
+                // Map section names to subcategory keys
+                const sectionMap = {
+                    'activity': 'activity',
+                    'plants': 'plants',
+                    'locations': 'locations',
+                    'gardener': 'gardener'
+                };
+
+                const subcategoryKey = sectionMap[section];
+
+                if (subcategoryKey && cornerSubcategories[subcategoryKey]) {
+                    console.log('Adding subcategory menu to corner icon:', section);
+                    navItem.classList.add('has-subcategories');
+                    setupCornerSubcategoryMenu(navItem, cornerSubcategories[subcategoryKey]);
+                }
+            });
+        }
+
+        function setupCornerSubcategoryMenu(cornerIcon, subcategoryItems) {
+            let menuContainer = null;
+            let hideTimeout = null;
+
+            // Define radial menu parameters
+            const radius = 140; // Distance from corner icon
+            let startAngle, arcSpan;
+
+            // Determine angle based on corner position
+            const position = cornerIcon.classList.contains('top-left') ? 'top-left' :
+                           cornerIcon.classList.contains('top-right') ? 'top-right' :
+                           cornerIcon.classList.contains('bottom-left') ? 'bottom-left' : 'bottom-right';
+
+            // Set angles based on corner to fan outward from corner
+            switch(position) {
+                case 'top-left':
+                    startAngle = 0;   // Right
+                    arcSpan = 90;     // Quarter circle down and right
+                    break;
+                case 'top-right':
+                    startAngle = 90;  // Down
+                    arcSpan = 90;     // Quarter circle down and left
+                    break;
+                case 'bottom-left':
+                    startAngle = 270; // Up
+                    arcSpan = 90;     // Quarter circle up and right
+                    break;
+                case 'bottom-right':
+                    startAngle = 180; // Left
+                    arcSpan = 90;     // Quarter circle up and left
+                    break;
+            }
+
+            cornerIcon.addEventListener('mouseenter', () => {
+                clearTimeout(hideTimeout);
+
+                console.log('Corner icon hover:', position, 'with', subcategoryItems.length, 'items');
+
+                if (!menuContainer) {
+                    // Create menu container attached to body for proper positioning
+                    menuContainer = document.createElement('div');
+                    menuContainer.className = 'subcategory-menu';
+                    menuContainer.style.position = 'fixed';
+                    menuContainer.style.zIndex = '150';
+                    document.body.appendChild(menuContainer);
+
+                    console.log('Created subcategory menu for corner:', position);
+
+                    // Get corner icon position
+                    const iconRect = cornerIcon.getBoundingClientRect();
+                    const iconCenterX = iconRect.left + iconRect.width / 2;
+                    const iconCenterY = iconRect.top + iconRect.height / 2;
+
+                    // Calculate radial positions
+                    const count = subcategoryItems.length;
+                    const angleStep = count > 1 ? arcSpan / (count - 1) : 0;
+
+                    subcategoryItems.forEach((subcat, index) => {
+                        const angle = startAngle + (angleStep * index);
+                        const radians = (angle * Math.PI) / 180;
+
+                        // Calculate position relative to icon center
+                        const x = Math.cos(radians) * radius;
+                        const y = Math.sin(radians) * radius;
+
+                        console.log(`${subcat.label}: angle=${angle}°, x=${x.toFixed(1)}, y=${y.toFixed(1)}`);
+
+                        // Create connector bridge from corner icon to subcategory button
+                        const connector = document.createElement('div');
+                        connector.className = 'subcategory-connector';
+                        const connectorWidth = 40; // Width of the "channel"
+                        const connectorLength = radius + 28; // Reach from icon center to beyond button center
+
+                        connector.style.width = connectorLength + 'px';
+                        connector.style.height = connectorWidth + 'px';
+                        connector.style.left = iconCenterX + 'px';
+                        connector.style.top = iconCenterY + 'px';
+                        connector.style.transformOrigin = '0 50%';
+                        connector.style.transform = `translate(0, -50%) rotate(${angle}deg)`;
+
+                        // Keep menu alive when hovering over connector
+                        connector.addEventListener('mouseenter', () => {
+                            clearTimeout(hideTimeout);
+                        });
+
+                        connector.addEventListener('mouseleave', () => {
+                            hideTimeout = setTimeout(() => {
+                                hideSubcategoryMenu();
+                            }, 300);
+                        });
+
+                        menuContainer.appendChild(connector);
+
+                        // Create subcategory item
+                        const subcatElement = document.createElement('div');
+                        subcatElement.className = 'subcategory-item';
+                        subcatElement.style.left = iconCenterX + 'px';
+                        subcatElement.style.top = iconCenterY + 'px';
+                        subcatElement.innerHTML = `
+                            ${subcat.icon}
+                            <div class="subcategory-label">${subcat.label}</div>
+                        `;
+
+                        subcatElement.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            console.log('Subcategory clicked:', subcat.label);
+                            handleSubcategoryClick(subcat.label);
+                        });
+
+                        // Label display logic with delay and grace period
+                        let labelShowTimeout = null;
+                        let labelHideTimeout = null;
+
+                        // Keep menu alive when hovering over subcategory button
+                        subcatElement.addEventListener('mouseenter', () => {
+                            clearTimeout(hideTimeout);
+                            clearTimeout(labelHideTimeout);
+
+                            // Show label after 300ms delay
+                            labelShowTimeout = setTimeout(() => {
+                                subcatElement.classList.add('label-visible');
+                            }, 300);
+                        });
+
+                        subcatElement.addEventListener('mouseleave', () => {
+                            clearTimeout(labelShowTimeout);
+
+                            // Grace period of 150ms for mouse jitter
+                            labelHideTimeout = setTimeout(() => {
+                                subcatElement.classList.remove('label-visible');
+                            }, 150);
+
+                            hideTimeout = setTimeout(() => {
+                                hideSubcategoryMenu();
+                            }, 300);
+                        });
+
+                        menuContainer.appendChild(subcatElement);
+
+                        // Animate with staggered delay
+                        setTimeout(() => {
+                            connector.classList.add('active');
+                            subcatElement.classList.add('active');
+                            subcatElement.style.left = (iconCenterX + x) + 'px';
+                            subcatElement.style.top = (iconCenterY + y) + 'px';
+                        }, index * 50);
+                    });
+
+                    // Keep menu visible when hovering over subcategory items
+                    menuContainer.addEventListener('mouseenter', () => {
+                        clearTimeout(hideTimeout);
+                    });
+
+                    menuContainer.addEventListener('mouseleave', () => {
+                        hideTimeout = setTimeout(() => {
+                            hideSubcategoryMenu();
+                        }, 300);
+                    });
+                }
+
+                menuContainer.classList.add('active');
+
+                // Update positions if window scrolled/resized (though unlikely in this app)
+                const iconRect = cornerIcon.getBoundingClientRect();
+                const iconCenterX = iconRect.left + iconRect.width / 2;
+                const iconCenterY = iconRect.top + iconRect.height / 2;
+
+                // Reactivate all items and connectors with fresh animation
+                const items = menuContainer.querySelectorAll('.subcategory-item');
+                const connectors = menuContainer.querySelectorAll('.subcategory-connector');
+
+                items.forEach((subcatElement, index) => {
+                    const count = subcategoryItems.length;
+                    const angleStep = count > 1 ? arcSpan / (count - 1) : 0;
+                    const angle = startAngle + (angleStep * index);
+                    const radians = (angle * Math.PI) / 180;
+                    const x = Math.cos(radians) * radius;
+                    const y = Math.sin(radians) * radius;
+
+                    // Update connector position
+                    if (connectors[index]) {
+                        connectors[index].style.left = iconCenterX + 'px';
+                        connectors[index].style.top = iconCenterY + 'px';
+                    }
+
+                    setTimeout(() => {
+                        if (connectors[index]) {
+                            connectors[index].classList.add('active');
+                        }
+                        subcatElement.classList.add('active');
+                        subcatElement.style.left = (iconCenterX + x) + 'px';
+                        subcatElement.style.top = (iconCenterY + y) + 'px';
+                    }, index * 50);
+                });
+            });
+
+            cornerIcon.addEventListener('mouseleave', (e) => {
+                // Check if mouse is moving to a subcategory item or connector
+                const relatedTarget = e.relatedTarget;
+                if (relatedTarget && menuContainer && menuContainer.contains(relatedTarget)) {
+                    return; // Don't hide if moving to subcategory or connector
+                }
+
+                hideTimeout = setTimeout(() => {
+                    hideSubcategoryMenu();
+                }, 300);
+            });
+
+            function hideSubcategoryMenu() {
+                if (menuContainer) {
+                    const items = menuContainer.querySelectorAll('.subcategory-item');
+                    const connectors = menuContainer.querySelectorAll('.subcategory-connector');
+
+                    // Get icon position for animation back
+                    const iconRect = cornerIcon.getBoundingClientRect();
+                    const iconCenterX = iconRect.left + iconRect.width / 2;
+                    const iconCenterY = iconRect.top + iconRect.height / 2;
+
+                    items.forEach(item => {
+                        item.classList.remove('active');
+                        item.classList.remove('label-visible');
+                        item.style.left = iconCenterX + 'px';
+                        item.style.top = iconCenterY + 'px';
+                    });
+
+                    connectors.forEach(connector => {
+                        connector.classList.remove('active');
+                    });
+
+                    menuContainer.classList.remove('active');
+                }
+            }
+        }
+
+        // ============================================
+        // API Integration for Supabase
+        // ============================================
+
+        // API Base URL - adjust if running on different port
+        const API_BASE_URL = 'http://localhost:3000/api';
+
+        // State management
+        let userPlants = [];
+        let userGardens = [];
+
+        // Fetch user's plants
+        async function fetchPlants() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/plants`, {
+                    credentials: 'include' // Include cookies for auth
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch plants: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                userPlants = data.plants || [];
+                console.log('Loaded plants:', userPlants);
+                return userPlants;
+            } catch (error) {
+                console.error('Error fetching plants:', error);
+                showToast('Failed to load plants');
+                return [];
+            }
+        }
+
+        // Fetch user's gardens
+        async function fetchGardens() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/gardens`, {
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch gardens: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                userGardens = data.gardens || [];
+                console.log('Loaded gardens:', userGardens);
+                return userGardens;
+            } catch (error) {
+                console.error('Error fetching gardens:', error);
+                showToast('Failed to load gardens');
+                return [];
+            }
+        }
+
+        // Log an activity (watering, feeding, pruning, etc.)
+        async function logActivity(activityType, plantId, notes = '') {
+            try {
+                const response = await fetch(`${API_BASE_URL}/activities`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        plant_id: plantId,
+                        activity_type: activityType,
+                        notes: notes,
+                        performed_at: new Date().toISOString()
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to log activity');
+                }
+
+                const data = await response.json();
+                console.log('Activity logged:', data.activity);
+                showToast(`✓ Logged ${activityType} activity`);
+                return data.activity;
+            } catch (error) {
+                console.error('Error logging activity:', error);
+                showToast(`Failed to log activity: ${error.message}`);
+                return null;
+            }
+        }
+
+        // Create a new plant
+        async function createPlant(plantData) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/plants`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(plantData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create plant');
+                }
+
+                const data = await response.json();
+                console.log('Plant created:', data.plant);
+                userPlants.push(data.plant);
+                showToast(`✓ Added ${data.plant.common_name}`);
+                return data.plant;
+            } catch (error) {
+                console.error('Error creating plant:', error);
+                showToast(`Failed to add plant: ${error.message}`);
+                return null;
+            }
+        }
+
+        // Create a new garden
+        async function createGarden(gardenData) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/gardens`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(gardenData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create garden');
+                }
+
+                const data = await response.json();
+                console.log('Garden created:', data.garden);
+                userGardens.push(data.garden);
+                showToast(`✓ Created ${data.garden.name}`);
+                return data.garden;
+            } catch (error) {
+                console.error('Error creating garden:', error);
+                showToast(`Failed to create garden: ${error.message}`);
+                return null;
+            }
+        }
+
+        // Handle subcategory click actions
+        async function handleSubcategoryClick(label) {
+            console.log('Subcategory action:', label);
+
+            // Route to appropriate handler based on label
+            switch(label) {
+                // Activity actions
+                case 'Log Watering':
+                    await handleLogWatering();
+                    break;
+                case 'Log Feeding':
+                    await handleLogFeeding();
+                    break;
+                case 'Log Pruning':
+                    await handleLogPruning();
+                    break;
+
+                // Plant actions
+                case 'Add Plant':
+                    await handleAddPlant();
+                    break;
+                case 'View All':
+                    await handleViewAllPlants();
+                    break;
+                case 'Search':
+                    await handleSearchPlants();
+                    break;
+
+                // Garden/Site actions
+                case 'Add Site':
+                    await handleAddGarden('site');
+                    break;
+                case 'Add Garden':
+                    await handleAddGarden('garden');
+                    break;
+                case 'View Map':
+                    await handleViewMap();
+                    break;
+
+                // Gardener actions
+                case 'Settings':
+                    handleSettings();
+                    break;
+                case 'Social':
+                    handleSocial();
+                    break;
+                case 'Achievements':
+                    handleAchievements();
+                    break;
+
+                default:
+                    showToast(`${label} clicked`);
+            }
+        }
+
+        // Activity handlers
+        async function handleLogWatering() {
+            // Ensure we have plants loaded
+            if (userPlants.length === 0) {
+                await fetchPlants();
+            }
+
+            if (userPlants.length === 0) {
+                showToast('No plants found. Add a plant first!');
+                return;
+            }
+
+            // Show plant selection UI (simplified for prototype)
+            const plantNames = userPlants.map(p => p.custom_name || p.common_name);
+            const selectedPlant = prompt(`Which plant did you water?\n\nYour plants:\n${plantNames.join('\n')}`);
+
+            if (selectedPlant) {
+                const plant = userPlants.find(p =>
+                    (p.custom_name || p.common_name).toLowerCase().includes(selectedPlant.toLowerCase())
+                );
+
+                if (plant) {
+                    await logActivity('watering', plant.id);
+                } else {
+                    showToast('Plant not found');
+                }
+            }
+        }
+
+        async function handleLogFeeding() {
+            if (userPlants.length === 0) {
+                await fetchPlants();
+            }
+
+            if (userPlants.length === 0) {
+                showToast('No plants found. Add a plant first!');
+                return;
+            }
+
+            const plantNames = userPlants.map(p => p.custom_name || p.common_name);
+            const selectedPlant = prompt(`Which plant did you feed?\n\nYour plants:\n${plantNames.join('\n')}`);
+
+            if (selectedPlant) {
+                const plant = userPlants.find(p =>
+                    (p.custom_name || p.common_name).toLowerCase().includes(selectedPlant.toLowerCase())
+                );
+
+                if (plant) {
+                    await logActivity('fertilizing', plant.id);
+                } else {
+                    showToast('Plant not found');
+                }
+            }
+        }
+
+        async function handleLogPruning() {
+            if (userPlants.length === 0) {
+                await fetchPlants();
+            }
+
+            if (userPlants.length === 0) {
+                showToast('No plants found. Add a plant first!');
+                return;
+            }
+
+            const plantNames = userPlants.map(p => p.custom_name || p.common_name);
+            const selectedPlant = prompt(`Which plant did you prune?\n\nYour plants:\n${plantNames.join('\n')}`);
+
+            if (selectedPlant) {
+                const plant = userPlants.find(p =>
+                    (p.custom_name || p.common_name).toLowerCase().includes(selectedPlant.toLowerCase())
+                );
+
+                if (plant) {
+                    await logActivity('pruning', plant.id);
+                } else {
+                    showToast('Plant not found');
+                }
+            }
+        }
+
+        // Plant handlers
+        async function handleAddPlant() {
+            // Ensure we have gardens loaded
+            if (userGardens.length === 0) {
+                await fetchGardens();
+            }
+
+            if (userGardens.length === 0) {
+                showToast('Please create a garden first!');
+                return;
+            }
+
+            const commonName = prompt('What type of plant are you adding?');
+            if (!commonName) return;
+
+            const customName = prompt('Give it a nickname (optional):');
+
+            const gardenNames = userGardens.map(g => g.name);
+            const selectedGarden = prompt(`Which garden?\n\n${gardenNames.join('\n')}`);
+
+            const garden = userGardens.find(g =>
+                g.name.toLowerCase().includes(selectedGarden?.toLowerCase() || '')
+            );
+
+            if (!garden) {
+                showToast('Garden not found');
+                return;
+            }
+
+            await createPlant({
+                garden_id: garden.id,
+                common_name: commonName,
+                custom_name: customName || null
+            });
+        }
+
+        async function handleViewAllPlants() {
+            await fetchPlants();
+
+            if (userPlants.length === 0) {
+                showToast('No plants yet!');
+                return;
+            }
+
+            const plantList = userPlants.map(p =>
+                `${p.custom_name || p.common_name} (${p.gardens?.name || 'Unknown garden'})`
+            ).join('\n');
+
+            alert(`Your Plants (${userPlants.length}):\n\n${plantList}`);
+        }
+
+        async function handleSearchPlants() {
+            const searchTerm = prompt('Search for a plant:');
+            if (!searchTerm) return;
+
+            await fetchPlants();
+            const results = userPlants.filter(p =>
+                (p.custom_name || p.common_name).toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (results.length === 0) {
+                showToast('No plants found');
+            } else {
+                const resultList = results.map(p => p.custom_name || p.common_name).join('\n');
+                alert(`Found ${results.length} plant(s):\n\n${resultList}`);
+            }
+        }
+
+        // Garden handlers
+        async function handleAddGarden(type) {
+            const name = prompt(`Name your new ${type}:`);
+            if (!name) return;
+
+            const description = prompt('Description (optional):');
+
+            await createGarden({
+                name,
+                description: description || null,
+                garden_type: type === 'site' ? 'outdoor' : 'indoor'
+            });
+        }
+
+        async function handleViewMap() {
+            showToast('Map view coming soon!');
+        }
+
+        // Gardener handlers
+        function handleSettings() {
+            showToast('Settings coming soon!');
+        }
+
+        function handleSocial() {
+            showToast('Social features coming soon!');
+        }
+
+        function handleAchievements() {
+            showToast('Achievements coming soon!');
+        }
+
+        function showToast(message) {
+            console.log('Toast:', message);
+            const undoToast = document.getElementById('undoToast');
+            const undoMessage = document.getElementById('undoMessage');
+
+            undoMessage.textContent = message;
+            undoToast.classList.add('active');
+
+            setTimeout(() => {
+                undoToast.classList.remove('active');
+            }, 3000);
+        }
+
+        // Load initial data when page loads
+        window.addEventListener('load', async () => {
+            console.log('Loading user data...');
+            await Promise.all([
+                fetchPlants(),
+                fetchGardens()
+            ]);
+            console.log('User data loaded');
+        });
+    </script>
+</body>
+</html>

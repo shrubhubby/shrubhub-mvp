@@ -10,6 +10,7 @@ interface GoogleMapWebProps {
   zoom: number
   isDrawing: boolean
   boundary: Coordinate[]
+  siteBoundary?: Coordinate[]
   onMapClick?: (lat: number, lng: number) => void
   onMarkerDrag?: (index: number, lat: number, lng: number) => void
 }
@@ -19,12 +20,14 @@ export function GoogleMapWeb({
   zoom,
   isDrawing,
   boundary,
+  siteBoundary = [],
   onMapClick,
   onMarkerDrag
 }: GoogleMapWebProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const [polygon, setPolygon] = useState<google.maps.Polygon | null>(null)
+  const [sitePolygon, setSitePolygon] = useState<google.maps.Polygon | null>(null)
   const [markers, setMarkers] = useState<google.maps.Marker[]>([])
   const clickListenerRef = useRef<google.maps.MapsEventListener | null>(null)
 
@@ -115,6 +118,41 @@ export function GoogleMapWeb({
     }
   }, [map, center.lat, center.lng])
 
+  // Render site boundary (if provided)
+  useEffect(() => {
+    if (!map) return
+
+    // Clear existing site polygon
+    if (sitePolygon) {
+      sitePolygon.setMap(null)
+    }
+
+    if (siteBoundary && siteBoundary.length >= 3) {
+      const path = siteBoundary.map(coord => ({
+        lat: coord.latitude,
+        lng: coord.longitude
+      }))
+
+      const newSitePolygon = new google.maps.Polygon({
+        paths: path,
+        strokeColor: '#228B1B',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: '#228B1B',
+        fillOpacity: 0.15,
+        editable: false,
+        draggable: false,
+        clickable: false
+      })
+      newSitePolygon.setMap(map)
+      setSitePolygon(newSitePolygon)
+    }
+
+    return () => {
+      if (sitePolygon) sitePolygon.setMap(null)
+    }
+  }, [map, siteBoundary])
+
   // Update polygon and markers
   useEffect(() => {
     if (!map) return
@@ -137,11 +175,11 @@ export function GoogleMapWeb({
       if (boundary.length >= 3) {
         const newPolygon = new google.maps.Polygon({
           paths: path,
-          strokeColor: '#228B1B',
+          strokeColor: '#2563EB',
           strokeOpacity: 1.0,
           strokeWeight: 3,
-          fillColor: '#228B1B',
-          fillOpacity: 0.3,
+          fillColor: '#2563EB',
+          fillOpacity: 0.35,
           editable: false,
           draggable: false
         })
@@ -157,7 +195,7 @@ export function GoogleMapWeb({
           draggable: true,
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#228B1B',
+            fillColor: '#2563EB',
             fillOpacity: 1,
             strokeColor: '#FFFFFF',
             strokeWeight: 2,

@@ -1,12 +1,13 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { supabase } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { GardenLocationPicker } from '@/components/map/GardenLocationPicker.web'
 
 const GARDEN_TYPES = [
   { value: 'indoor', label: 'Indoor', emoji: '🏠' },
@@ -19,13 +20,65 @@ const GARDEN_TYPES = [
   { value: 'mixed', label: 'Mixed', emoji: '🌿' },
 ]
 
+interface Coordinate {
+  latitude: number
+  longitude: number
+}
+
 export default function AddGardenScreen() {
   const router = useRouter()
+  const { siteId } = useLocalSearchParams()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [location, setLocation] = useState('')
   const [gardenType, setGardenType] = useState('mixed')
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>((siteId as string) || null)
+  const [sites, setSites] = useState<any[]>([])
+  const [locationLat, setLocationLat] = useState<number | null>(null)
+  const [locationLng, setLocationLng] = useState<number | null>(null)
+  const [boundary, setBoundary] = useState<Coordinate[]>([])
+
+  useEffect(() => {
+    loadUserSites()
+  }, [])
+
+  const loadUserSites = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: gardener } = await supabase
+        .from('gardeners')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single()
+
+      if (!gardener) return
+
+      const { data: sitesData } = await supabase
+        .from('sites')
+        .select('id, name')
+        .eq('gardener_id', gardener.id)
+        .order('name')
+
+      if (sitesData) {
+        setSites(sitesData)
+      }
+    } catch (error) {
+      console.error('Error loading sites:', error)
+    }
+  }
+
+  const convertBoundaryToWKT = (coords: Coordinate[]): string | null => {
+    if (coords.length < 3) return null
+
+    // WKT format: POLYGON((lng lat, lng lat, ...))
+    // Need to close the polygon by repeating first point at the end
+    const coordStrings = coords.map(c => `${c.longitude} ${c.latitude}`)
+    coordStrings.push(coordStrings[0]) // Close the polygon
+    return `POLYGON((${coordStrings.join(', ')}))`
+  }
 
   const handleCreateGarden = async () => {
     if (!name.trim()) {
@@ -53,6 +106,7 @@ export default function AddGardenScreen() {
       }
 
       // Create garden
+      const boundaryWKT = convertBoundaryToWKT(boundary)
       const { error } = await supabase
         .from('gardens')
         .insert({
@@ -62,6 +116,10 @@ export default function AddGardenScreen() {
           location_description: location.trim() || null,
           garden_type: gardenType,
           is_primary: false, // New gardens are not primary by default
+          site_id: selectedSiteId || null,
+          location_lat: locationLat,
+          location_lng: locationLng,
+          boundary: boundaryWKT,
         })
 
       if (error) throw error
@@ -155,14 +213,54 @@ export default function AddGardenScreen() {
               </CardContent>
             </Card>
 
-            {/* Future: Site Selection */}
-            <Card>
-              <CardContent>
-                <Text className="text-sm text-coal/60">
-                  💡 In the future, you'll be able to group gardens into "Sites" (e.g., your home, a community garden location) to share weather and environmental data.
-                </Text>
-              </CardContent>
-            </Card>
+            {/* Site Selection */}
+            {sites.length > 0 && (
+              <Card>
+                <CardContent className="gap-3">
+                  <Text className="text-sm font-medium text-coal">Site (Optional)</Text>
+                  <Text className="text-xs text-coal/60">
+                    Associate this garden with a site to share location and environmental data
+                  </Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    <Button
+                      variant={selectedSiteId === null ? 'primary' : 'outline'}
+                      size="sm"
+                      onPress={() => setSelectedSiteId(null)}
+                      className="flex-grow-0"
+                    >
+                      <Text className={selectedSiteId === null ? 'text-white' : 'text-coal'}>
+                        No Site
+                      </Text>
+                    </Button>
+                    {sites.map((site) => (
+                      <Button
+                        key={site.id}
+                        variant={selectedSiteId === site.id ? 'primary' : 'outline'}
+                        size="sm"
+                        onPress={() => setSelectedSiteId(site.id)}
+                        className="flex-grow-0"
+                      >
+                        <Text className={selectedSiteId === site.id ? 'text-white' : 'text-coal'}>
+                          {site.name}
+                        </Text>
+                      </Button>
+                    ))}
+                  </View>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Garden Location & Boundary */}
+            {typeof window !== 'undefined' && (
+              <GardenLocationPicker
+                siteId={selectedSiteId}
+                onLocationChange={(lat, lng) => {
+                  setLocationLat(lat)
+                  setLocationLng(lng)
+                }}
+                onBoundaryChange={setBoundary}
+              />
+            )}
           </View>
         </ScrollView>
 
