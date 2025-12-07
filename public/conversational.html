@@ -2063,6 +2063,43 @@
         // API Base URL - use relative path so it works in both dev and production
         const API_BASE_URL = '/api';
 
+        // Supabase client initialization
+        const SUPABASE_URL = 'https://pfkxhoqlfflgjlovgenc.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBma3hob3FsZmZsZ2psb3ZnZW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzMyNzUyNTIsImV4cCI6MjA0ODg1MTI1Mn0.G1UpQSNKqgr3oo7SdMVwEyNwdaZYn2nULQVw7BPmP5o';
+
+        // Get auth token from Supabase
+        async function getAuthToken() {
+            const storedSession = localStorage.getItem('supabase.auth.token');
+            if (storedSession) {
+                try {
+                    const session = JSON.parse(storedSession);
+                    return session.access_token || session.currentSession?.access_token;
+                } catch (e) {
+                    console.error('Failed to parse stored session', e);
+                }
+            }
+            return null;
+        }
+
+        // Helper function to make authenticated fetch requests
+        async function authenticatedFetch(url, options = {}) {
+            const token = await getAuthToken();
+            const headers = options.headers || {};
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            if (options.body && typeof options.body === 'object') {
+                headers['Content-Type'] = 'application/json';
+            }
+
+            return fetch(url, {
+                ...options,
+                headers
+            });
+        }
+
         // State management
         let userPlants = [];
         let userGardens = [];
@@ -2070,9 +2107,7 @@
         // Fetch user's plants
         async function fetchPlants() {
             try {
-                const response = await fetch(`${API_BASE_URL}/plants`, {
-                    credentials: 'include' // Include cookies for auth
-                });
+                const response = await authenticatedFetch(`${API_BASE_URL}/plants`);
 
                 if (!response.ok) {
                     throw new Error(`Failed to fetch plants: ${response.statusText}`);
@@ -2092,9 +2127,7 @@
         // Fetch user's gardens
         async function fetchGardens() {
             try {
-                const response = await fetch(`${API_BASE_URL}/gardens`, {
-                    credentials: 'include'
-                });
+                const response = await authenticatedFetch(`${API_BASE_URL}/gardens`);
 
                 if (!response.ok) {
                     throw new Error(`Failed to fetch gardens: ${response.statusText}`);
@@ -2114,12 +2147,8 @@
         // Log an activity (watering, feeding, pruning, etc.)
         async function logActivity(activityType, plantId, notes = '') {
             try {
-                const response = await fetch(`${API_BASE_URL}/activities`, {
+                const response = await authenticatedFetch(`${API_BASE_URL}/activities`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include',
                     body: JSON.stringify({
                         plant_id: plantId,
                         activity_type: activityType,
@@ -2147,12 +2176,8 @@
         // Create a new plant
         async function createPlant(plantData) {
             try {
-                const response = await fetch(`${API_BASE_URL}/plants`, {
+                const response = await authenticatedFetch(`${API_BASE_URL}/plants`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include',
                     body: JSON.stringify(plantData)
                 });
 
@@ -2176,12 +2201,8 @@
         // Create a new garden
         async function createGarden(gardenData) {
             try {
-                const response = await fetch(`${API_BASE_URL}/gardens`, {
+                const response = await authenticatedFetch(`${API_BASE_URL}/gardens`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include',
                     body: JSON.stringify(gardenData)
                 });
 
