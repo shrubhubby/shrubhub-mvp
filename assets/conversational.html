@@ -2060,8 +2060,8 @@
         // API Integration for Supabase
         // ============================================
 
-        // API Base URL - adjust if running on different port
-        const API_BASE_URL = 'http://localhost:3000/api';
+        // API Base URL - use relative path so it works in both dev and production
+        const API_BASE_URL = '/api';
 
         // State management
         let userPlants = [];
