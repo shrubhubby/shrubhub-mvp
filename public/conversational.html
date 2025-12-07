@@ -2515,7 +2515,8 @@
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            if (options.body && typeof options.body === 'object') {
+            // Set Content-Type for POST/PUT requests with body
+            if (options.body) {
                 headers['Content-Type'] = 'application/json';
             }
 
