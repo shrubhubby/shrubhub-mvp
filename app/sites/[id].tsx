@@ -327,10 +327,30 @@ export default function SiteDetailScreen() {
           {/* Site Info */}
           <Card>
             <CardHeader>
-              <Text className="text-2xl font-bold text-coal">🏡 {site.name}</Text>
-              {site.location_description && (
-                <Text className="text-coal/60 mt-1">📍 {site.location_description}</Text>
-              )}
+              <View className="flex-row items-start justify-between">
+                <View className="flex-1">
+                  <Text className="text-2xl font-bold text-coal">🏡 {site.name}</Text>
+                  {site.location_description && (
+                    <Text className="text-coal/60 mt-1">📍 {site.location_description}</Text>
+                  )}
+                </View>
+                <View className="flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={() => setIsEditing(true)}
+                  >
+                    <Text className="text-coal font-medium text-xs">✏️ Edit</Text>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={handleDelete}
+                  >
+                    <Text className="text-coal font-medium text-xs">🗑️ Delete</Text>
+                  </Button>
+                </View>
+              </View>
             </CardHeader>
             <CardContent className="gap-4">
               <View className="flex-row flex-wrap gap-4">
@@ -495,31 +515,6 @@ export default function SiteDetailScreen() {
               </Card>
             </View>
           )}
-
-          {/* Actions */}
-          <Card>
-            <CardContent className="gap-3">
-              <View className="flex-row gap-3">
-                <Button
-                  variant="primary"
-                  onPress={() => setIsEditing(true)}
-                  className="flex-1"
-                >
-                  <Text className="text-white font-medium">✏️ Edit Site</Text>
-                </Button>
-                <Button
-                  variant="outline"
-                  onPress={handleDelete}
-                  className="flex-1"
-                >
-                  <Text className="text-coal font-medium">🗑️ Delete</Text>
-                </Button>
-              </View>
-              <Text className="text-xs text-coal/60">
-                Deleting a site will not delete gardens - they will just be unassigned
-              </Text>
-            </CardContent>
-          </Card>
 
           {/* Future: Weather & Environmental Data */}
           <Card>
