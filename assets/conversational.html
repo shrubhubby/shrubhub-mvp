@@ -2069,15 +2069,27 @@
 
         // Get auth token from Supabase
         async function getAuthToken() {
-            const storedSession = localStorage.getItem('supabase.auth.token');
+            // Supabase stores session under sb-<project-ref>-auth-token
+            const storageKey = 'sb-pfkxhoqlfflgjlovgenc-auth-token';
+            const storedSession = localStorage.getItem(storageKey);
+
+            console.log('Looking for auth token in localStorage...');
+            console.log('Storage key:', storageKey);
+            console.log('Stored session:', storedSession ? 'found' : 'not found');
+
             if (storedSession) {
                 try {
                     const session = JSON.parse(storedSession);
-                    return session.access_token || session.currentSession?.access_token;
+                    console.log('Parsed session:', session);
+                    const token = session.access_token || session.currentSession?.access_token;
+                    console.log('Extracted token:', token ? 'found' : 'not found');
+                    return token;
                 } catch (e) {
                     console.error('Failed to parse stored session', e);
                 }
             }
+
+            console.warn('No auth token found - user may not be logged in');
             return null;
         }
 
