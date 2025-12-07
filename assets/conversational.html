@@ -864,11 +864,274 @@
         .undo-button:hover {
             text-decoration: underline;
         }
+
+        /* Beautiful Login Form Styles */
+        .auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #5a7658 0%, #425641 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .auth-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .auth-container {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border-radius: 32px;
+            padding: 64px 48px;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 30px 90px rgba(0, 0, 0, 0.25);
+            transform: scale(0.9);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .auth-overlay.active .auth-container {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .auth-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #5a7658, #6b9169);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin: 0 auto 32px;
+            box-shadow: 0 8px 24px rgba(90, 118, 88, 0.3);
+        }
+
+        .auth-title {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #2c3e2a, #5a7658);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .auth-subtitle {
+            font-size: 15px;
+            color: #5a7658;
+            text-align: center;
+            margin-bottom: 48px;
+            font-weight: 400;
+        }
+
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .auth-input-wrapper {
+            position: relative;
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 18px 20px;
+            border: none;
+            background: #f8f9fa;
+            border-radius: 16px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            box-sizing: border-box;
+        }
+
+        .auth-input::placeholder {
+            color: #a0a0a0;
+        }
+
+        .auth-input:focus {
+            outline: none;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(90, 118, 88, 0.1),
+                        0 4px 12px rgba(0, 0, 0, 0.05);
+            transform: translateY(-1px);
+        }
+
+        .auth-button {
+            padding: 18px 32px;
+            background: linear-gradient(135deg, #5a7658, #6b9169);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+            box-shadow: 0 8px 24px rgba(90, 118, 88, 0.3);
+        }
+
+        .auth-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(90, 118, 88, 0.4);
+        }
+
+        .auth-button:active {
+            transform: translateY(0);
+        }
+
+        .auth-button:disabled {
+            background: #e0e0e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .auth-error {
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(239, 68, 68, 0.1));
+            color: #dc2626;
+            padding: 14px 18px;
+            border-radius: 14px;
+            font-size: 14px;
+            text-align: center;
+            border-left: 3px solid #dc2626;
+        }
+
+        .auth-toggle {
+            text-align: center;
+            font-size: 15px;
+            color: #6b7280;
+            margin-top: 24px;
+        }
+
+        .auth-toggle-link {
+            color: #5a7658;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent;
+        }
+
+        .auth-toggle-link:hover {
+            border-bottom-color: #5a7658;
+        }
+
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 32px 0;
+            color: #a0a0a0;
+            font-size: 13px;
+        }
+
+        .auth-divider::before,
+        .auth-divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .auth-divider span {
+            padding: 0 16px;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .auth-overlay.active .auth-form > * {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .auth-overlay.active .auth-form > *:nth-child(1) { animation-delay: 0.1s; }
+        .auth-overlay.active .auth-form > *:nth-child(2) { animation-delay: 0.2s; }
+        .auth-overlay.active .auth-form > *:nth-child(3) { animation-delay: 0.3s; }
+        .auth-overlay.active .auth-form > *:nth-child(4) { animation-delay: 0.4s; }
+        .auth-overlay.active .auth-form > *:nth-child(5) { animation-delay: 0.5s; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <!-- Adaptive background -->
     <div class="background" id="background"></div>
+
+    <!-- Auth Overlay -->
+    <div class="auth-overlay" id="authOverlay">
+        <div class="auth-container">
+            <div class="auth-logo">🌱</div>
+            <h1 class="auth-title" id="authTitle">Welcome to ShrubHub</h1>
+            <p class="auth-subtitle" id="authSubtitle">Your intelligent gardening companion</p>
+
+            <form class="auth-form" id="authForm">
+                <div class="auth-input-wrapper" id="nameInputWrapper" style="display: none;">
+                    <input
+                        type="text"
+                        class="auth-input"
+                        id="nameInput"
+                        placeholder="Your name"
+                        autocomplete="name"
+                    />
+                </div>
+
+                <div class="auth-input-wrapper">
+                    <input
+                        type="email"
+                        class="auth-input"
+                        id="emailInput"
+                        placeholder="Email address"
+                        autocomplete="email"
+                        required
+                    />
+                </div>
+
+                <div class="auth-input-wrapper">
+                    <input
+                        type="password"
+                        class="auth-input"
+                        id="passwordInput"
+                        placeholder="Password"
+                        autocomplete="current-password"
+                        required
+                    />
+                </div>
+
+                <div class="auth-error" id="authError" style="display: none;"></div>
+
+                <button type="submit" class="auth-button" id="authButton">
+                    Sign In
+                </button>
+            </form>
+
+            <div class="auth-toggle">
+                <span id="authToggleText">Don't have an account?</span>
+                <a class="auth-toggle-link" id="authToggleLink">Sign up</a>
+            </div>
+        </div>
+    </div>
 
     <!-- Corner navigation icons -->
     <div class="corner-nav-item top-left" data-section="activity" title="Activity">
@@ -2100,7 +2363,122 @@
 
         // Supabase client initialization
         const SUPABASE_URL = 'https://pfkxhoqlfflgjlovgenc.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBma3hob3FsZmZsZ2psb3ZnZW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzMzMjk4MzMsImV4cCI6MjA0ODkwNTgzM30.oexmYcOYa2BUlVV4eNWE9RqKHPeGAXs1F21nfMElGZs';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBma3hob3FsZmZsZ2psb3ZnZW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzMyNzUyNTIsImV4cCI6MjA0ODg1MTI1Mn0.G1UpQSNKqgr3oo7SdMVwEyNwdaZYn2nULQVw7BPmP5o';
+
+        // Initialize Supabase client
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Auth state
+        let isSignupMode = false;
+
+        // Check authentication on page load
+        async function checkAuth() {
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (!session) {
+                // Show auth overlay
+                document.getElementById('authOverlay').classList.add('active');
+            } else {
+                // User is authenticated, hide auth overlay
+                document.getElementById('authOverlay').classList.remove('active');
+            }
+        }
+
+        // Toggle between login and signup
+        function toggleAuthMode() {
+            isSignupMode = !isSignupMode;
+
+            const authTitle = document.getElementById('authTitle');
+            const authSubtitle = document.getElementById('authSubtitle');
+            const authButton = document.getElementById('authButton');
+            const authToggleText = document.getElementById('authToggleText');
+            const authToggleLink = document.getElementById('authToggleLink');
+            const nameInputWrapper = document.getElementById('nameInputWrapper');
+
+            if (isSignupMode) {
+                authTitle.textContent = 'Join ShrubHub';
+                authSubtitle.textContent = 'Start your gardening journey today';
+                authButton.textContent = 'Create Account';
+                authToggleText.textContent = 'Already have an account?';
+                authToggleLink.textContent = 'Sign in';
+                nameInputWrapper.style.display = 'block';
+            } else {
+                authTitle.textContent = 'Welcome Back';
+                authSubtitle.textContent = 'Your intelligent gardening companion';
+                authButton.textContent = 'Sign In';
+                authToggleText.textContent = "Don't have an account?";
+                authToggleLink.textContent = 'Sign up';
+                nameInputWrapper.style.display = 'none';
+            }
+        }
+
+        // Show auth error
+        function showAuthError(message) {
+            const authError = document.getElementById('authError');
+            authError.textContent = message;
+            authError.style.display = 'block';
+
+            setTimeout(() => {
+                authError.style.display = 'none';
+            }, 5000);
+        }
+
+        // Handle auth form submission
+        async function handleAuthSubmit(event) {
+            event.preventDefault();
+
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            const name = document.getElementById('nameInput').value;
+            const authButton = document.getElementById('authButton');
+
+            // Disable button
+            authButton.disabled = true;
+            authButton.textContent = isSignupMode ? 'Creating account...' : 'Signing in...';
+
+            try {
+                if (isSignupMode) {
+                    // Sign up
+                    const { data, error } = await supabase.auth.signUp({
+                        email,
+                        password,
+                        options: {
+                            data: {
+                                name,
+                                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                            },
+                        },
+                    });
+
+                    if (error) throw error;
+
+                    // Success - hide auth overlay
+                    document.getElementById('authOverlay').classList.remove('active');
+                    showToast('Welcome to ShrubHub!');
+                } else {
+                    // Sign in
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email,
+                        password,
+                    });
+
+                    if (error) throw error;
+
+                    // Success - hide auth overlay
+                    document.getElementById('authOverlay').classList.remove('active');
+                    showToast('Welcome back!');
+                }
+            } catch (error) {
+                console.error('Auth error:', error);
+                showAuthError(error.message || 'Authentication failed');
+                authButton.disabled = false;
+                authButton.textContent = isSignupMode ? 'Create Account' : 'Sign In';
+            }
+        }
+
+        // Setup auth event listeners
+        document.getElementById('authForm').addEventListener('submit', handleAuthSubmit);
+        document.getElementById('authToggleLink').addEventListener('click', toggleAuthMode);
 
         // Get auth token from Supabase
         async function getAuthToken() {
@@ -2559,12 +2937,19 @@
 
         // Load initial data when page loads
         window.addEventListener('load', async () => {
-            console.log('Loading user data...');
-            await Promise.all([
-                fetchPlants(),
-                fetchGardens()
-            ]);
-            console.log('User data loaded');
+            console.log('Checking authentication...');
+            await checkAuth();
+
+            // Only load data if authenticated
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                console.log('Loading user data...');
+                await Promise.all([
+                    fetchPlants(),
+                    fetchGardens()
+                ]);
+                console.log('User data loaded');
+            }
         });
     </script>
 </body>
