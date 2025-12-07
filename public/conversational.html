@@ -1391,28 +1391,63 @@
         }
 
         // Handle input submission
-        function handleInput(event) {
+        async function handleInput(event) {
             if (event.key !== 'Enter') return;
 
             const inputField = document.getElementById('inputField');
-            const userInput = inputField.value.trim().toLowerCase();
+            const userInput = inputField.value.trim();
 
             if (!userInput) return;
 
             // Transition to thinking state
             currentState = 'thinking';
             showThinking();
+            inputField.value = '';
 
-            // Simulate AI processing
-            setTimeout(() => {
-                let responseType = 'default';
-                if (userInput.includes('water')) responseType = 'watered';
-                else if (userInput.includes('new') || userInput.includes('plant')) responseType = 'new plant';
-                else if (userInput.includes('problem') || userInput.includes('yellow') || userInput.includes('sick')) responseType = 'problem';
+            try {
+                // Get or create session ID
+                let sessionId = localStorage.getItem('conversation_session_id');
 
-                showResponse(responses[responseType]);
-                inputField.value = '';
-            }, 2000);
+                // Call chat API
+                const response = await authenticatedFetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: userInput,
+                        session_id: sessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to get response');
+                }
+
+                const data = await response.json();
+
+                // Store session ID for future messages
+                if (data.session_id) {
+                    localStorage.setItem('conversation_session_id', data.session_id);
+                }
+
+                // Show AI response
+                showResponse({
+                    icon: '🌿',
+                    title: 'ShrubHub Assistant',
+                    subtitle: data.message,
+                    content: 'chat',
+                    actions: ['okay']
+                });
+
+            } catch (error) {
+                console.error('Error calling chat API:', error);
+                showResponse({
+                    icon: '❌',
+                    title: 'Error',
+                    subtitle: `Failed to get response: ${error.message}`,
+                    content: 'error',
+                    actions: ['okay']
+                });
+            }
         }
 
         // Show thinking animation
