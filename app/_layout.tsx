@@ -31,6 +31,7 @@ export default function RootLayout() {
       <Stack.Screen name="plants" />
       <Stack.Screen name="gardens" />
       <Stack.Screen name="sites" />
+      <Stack.Screen name="conversational" />
     </Stack>
   )
 }
