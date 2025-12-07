@@ -115,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : 'No gardens yet'
 
     const plantContext = plants?.length
-      ? `Plants: ${plants.map(p => `${p.custom_name || p.common_name} in ${p.gardens?.name || 'unknown garden'} (${p.health_status})`).join(', ')}`
+      ? `Plants: ${plants.map(p => `${p.custom_name || p.common_name} in ${(p.gardens as any)?.name || 'unknown garden'} (${p.health_status})`).join(', ')}`
       : 'No plants yet'
 
     const systemPrompt = `You are a helpful gardening assistant for ShrubHub. You have access to the user's garden data.

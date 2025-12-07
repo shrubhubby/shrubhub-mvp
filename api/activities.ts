@@ -73,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('id', plant_id)
         .single()
 
-      if (!plant || plant.gardens.gardener_id !== gardener.id) {
+      if (!plant || (plant.gardens as any)?.gardener_id !== gardener.id) {
         return res.status(403).json({ error: 'Plant not found or unauthorized' })
       }
 
