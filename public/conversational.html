@@ -2920,6 +2920,37 @@
                     }
                 );
 
+                // === ACTIVITY LOGGING SUGGESTIONS (Always available if user has plants) ===
+                if (plants.length > 0) {
+                    suggestions.push(
+                        {
+                            icon: '💧',
+                            text: 'Log a watering',
+                            action: () => sendSuggestionMessage('I just watered my plants')
+                        },
+                        {
+                            icon: '🌿',
+                            text: 'Record today\'s care',
+                            action: () => sendSuggestionMessage('I want to log an activity')
+                        },
+                        {
+                            icon: '🧪',
+                            text: 'Track fertilizing',
+                            action: () => sendSuggestionMessage('I fertilized my plants today')
+                        },
+                        {
+                            icon: '✂️',
+                            text: 'Log pruning or trimming',
+                            action: () => sendSuggestionMessage('I pruned some plants')
+                        },
+                        {
+                            icon: '📸',
+                            text: 'Note a plant observation',
+                            action: () => sendSuggestionMessage('I noticed something about my plant')
+                        }
+                    );
+                }
+
                 // Store all suggestions for rotation
                 allSuggestions = suggestions;
 
