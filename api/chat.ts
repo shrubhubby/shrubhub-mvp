@@ -152,7 +152,7 @@ Help the user with their gardening questions, provide advice, and assist with ma
     })
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20240620',
+      model: 'claude-3-opus-20240229',
       max_tokens: 1024,
       system: systemPrompt,
       messages: messages,
