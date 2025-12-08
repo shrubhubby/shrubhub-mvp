@@ -2780,9 +2780,13 @@
 
         // Check user's data and show relevant suggestions
         async function checkUserDataAndShowSuggestions() {
+            console.log('[Suggestions] checkUserDataAndShowSuggestions called');
             try {
                 const { data: { session } } = await supabase.auth.getSession();
-                if (!session) return;
+                if (!session) {
+                    console.log('[Suggestions] No session, returning');
+                    return;
+                }
 
                 const token = session.access_token;
 
@@ -2804,6 +2808,8 @@
                 });
                 const activitiesData = await activitiesResponse.json();
                 const activities = activitiesData.activities || [];
+
+                console.log('[Suggestions] Data fetched - gardens:', gardens.length, 'plants:', plants.length, 'activities:', activities.length);
 
                 // Build comprehensive suggestion pool based on user state
                 const suggestions = [];
@@ -2954,17 +2960,23 @@
                 // Store all suggestions for rotation
                 allSuggestions = suggestions;
 
+                console.log('[Suggestions] Total suggestions built:', suggestions.length);
+
                 // Start showing suggestions with rotation
                 if (suggestions.length > 0) {
+                    console.log('[Suggestions] Starting rotation with', suggestions.length, 'suggestions');
                     startSuggestionRotation();
+                } else {
+                    console.log('[Suggestions] No suggestions to show');
                 }
             } catch (error) {
-                console.error('Error checking user data:', error);
+                console.error('[Suggestions] Error checking user data:', error);
             }
         }
 
         // Start rotating suggestions
         function startSuggestionRotation() {
+            console.log('[Suggestions] startSuggestionRotation called');
             // Clear any existing interval
             if (suggestionRotationInterval) {
                 clearInterval(suggestionRotationInterval);
@@ -2995,13 +3007,18 @@
 
         // Show 2-3 random suggestions from the pool
         function showRandomSuggestions() {
-            if (allSuggestions.length === 0) return;
+            console.log('[Suggestions] showRandomSuggestions called, pool size:', allSuggestions.length);
+            if (allSuggestions.length === 0) {
+                console.log('[Suggestions] No suggestions in pool, returning');
+                return;
+            }
 
             // Pick 2-3 random suggestions
             const count = Math.min(allSuggestions.length, Math.floor(Math.random() * 2) + 2); // 2 or 3
             const shuffled = [...allSuggestions].sort(() => Math.random() - 0.5);
             const selected = shuffled.slice(0, count);
 
+            console.log('[Suggestions] Selected', count, 'suggestions to display');
             showSuggestions(selected);
         }
 
@@ -3031,9 +3048,10 @@
 
         // Actually display the suggestion buttons
         function displaySuggestions(container, suggestions) {
+            console.log('[Suggestions] displaySuggestions called with', suggestions.length, 'suggestions');
             container.innerHTML = '';
 
-            suggestions.forEach(suggestion => {
+            suggestions.forEach((suggestion, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'suggestion-btn';
                 btn.innerHTML = `<span class="icon">${suggestion.icon}</span>${suggestion.text}`;
@@ -3043,7 +3061,9 @@
                     stopSuggestionRotation();
                 };
                 container.appendChild(btn);
+                console.log('[Suggestions] Added button', index + 1, ':', suggestion.text);
             });
+            console.log('[Suggestions] Buttons added to container, total children:', container.children.length);
         }
 
         // Hide suggestion buttons
