@@ -849,6 +849,25 @@
             transform: translateX(-50%) translateY(0);
         }
 
+        /* Chat Response Backdrop */
+        .chat-response-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 99;
+        }
+
+        .chat-response-backdrop.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
         /* Chat Response Display */
         .chat-response {
             position: fixed;
@@ -858,16 +877,17 @@
             max-width: 700px;
             width: 85%;
             max-height: 70vh;
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(30px);
+            border-radius: 10px;
             padding: 40px;
             opacity: 0;
             pointer-events: none;
             transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 100;
             overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25),
+                        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
         }
 
         .chat-response.active {
@@ -875,13 +895,37 @@
             pointer-events: all;
         }
 
+        /* Custom scrollbar for chat response */
+        .chat-response::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-response::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+        }
+
+        .chat-response::-webkit-scrollbar-thumb {
+            background: rgba(90, 118, 88, 0.3);
+            border-radius: 10px;
+            transition: background 0.2s ease;
+        }
+
+        .chat-response::-webkit-scrollbar-thumb:hover {
+            background: rgba(90, 118, 88, 0.5);
+        }
+
+        /* Firefox scrollbar */
+        .chat-response {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(90, 118, 88, 0.3) rgba(0, 0, 0, 0.05);
+        }
+
         .chat-response-content {
             font-size: 20px;
             line-height: 1.7;
             color: #2c3e2a;
             font-weight: 400;
-            white-space: pre-wrap;
-            word-wrap: break-word;
         }
 
         .chat-response-content p {
@@ -893,8 +937,11 @@
         }
 
         .chat-response-content strong {
-            font-weight: 600;
+            font-weight: 700;
             color: #1a2419;
+            background: rgba(90, 118, 88, 0.08);
+            padding: 2px 4px;
+            border-radius: 3px;
         }
 
         .chat-response-content em {
@@ -915,9 +962,12 @@
         .chat-close-hint {
             text-align: center;
             margin-top: 32px;
-            font-size: 14px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(90, 118, 88, 0.15);
+            font-size: 13px;
             color: #5a7658;
-            opacity: 0.7;
+            opacity: 0.6;
+            font-weight: 500;
         }
 
         /* Hide input while showing response */
@@ -1242,9 +1292,10 @@
         </div>
 
         <!-- Chat Response Display -->
+        <div class="chat-response-backdrop" id="chatResponseBackdrop"></div>
         <div class="chat-response" id="chatResponse">
             <div class="chat-response-content" id="chatResponseContent"></div>
-            <div class="chat-close-hint">Press Enter to ask another question</div>
+            <div class="chat-close-hint">Click outside or press ESC to close</div>
         </div>
 
         <!-- Response card (hidden initially) -->
@@ -1767,30 +1818,87 @@
             }
         }
 
+        // Format message with emphasis on key words
+        function formatMessage(message) {
+            // Words/phrases to emphasize (make bold)
+            const emphasisWords = [
+                'garden', 'gardens', 'plant', 'plants', 'water', 'watering', 'fertilize', 'fertilizing',
+                'prune', 'pruning', 'soil', 'sunlight', 'shade', 'temperature', 'humidity',
+                'pest', 'pests', 'disease', 'root', 'roots', 'leaf', 'leaves', 'stem', 'stems',
+                'bloom', 'blooming', 'growth', 'growing', 'seed', 'seeds', 'seedling', 'seedlings',
+                'transplant', 'transplanting', 'repot', 'repotting', 'compost', 'mulch',
+                'drought', 'frost', 'harvest', 'harvesting', 'organic', 'vegetable', 'vegetables',
+                'herb', 'herbs', 'flower', 'flowers', 'tree', 'trees', 'shrub', 'shrubs',
+                'important', 'warning', 'caution', 'note', 'tip', 'remember', 'don\'t', 'do not',
+                'must', 'should', 'need', 'critical', 'essential', 'key', 'vital'
+            ];
+
+            let formatted = message;
+
+            // Add emphasis to key gardening terms (case-insensitive)
+            emphasisWords.forEach(word => {
+                const regex = new RegExp(`\\b(${word})\\b`, 'gi');
+                formatted = formatted.replace(regex, '<strong>$1</strong>');
+            });
+
+            // Preserve line breaks
+            formatted = formatted.replace(/\n/g, '<br>');
+
+            return formatted;
+        }
+
         // Show chat response in beautiful format
         function showChatResponse(message) {
             const thinking = document.getElementById('thinking');
             const chatResponse = document.getElementById('chatResponse');
+            const chatResponseBackdrop = document.getElementById('chatResponseBackdrop');
             const chatResponseContent = document.getElementById('chatResponseContent');
             const inputContainer = document.getElementById('inputContainer');
+            const inputField = document.getElementById('inputField');
 
             // Hide thinking, show response
             thinking.classList.remove('active');
-            chatResponseContent.textContent = message;
+
+            // Format and display message
+            chatResponseContent.innerHTML = formatMessage(message);
+
+            // Show backdrop and response
+            chatResponseBackdrop.classList.add('active');
             chatResponse.classList.add('active');
-            inputContainer.classList.add('active');
 
-            // Return to idle state
-            currentState = 'idle';
+            // Set state to show we're viewing a response
+            currentState = 'response';
 
-            // Close response on Enter key
-            const closeHandler = (e) => {
-                if (e.key === 'Enter') {
-                    chatResponse.classList.remove('active');
-                    document.removeEventListener('keydown', closeHandler);
+            // Close response function
+            const closeResponse = () => {
+                chatResponse.classList.remove('active');
+                chatResponseBackdrop.classList.remove('active');
+                currentState = 'idle';
+                inputField.focus();
+
+                // Remove all event listeners
+                chatResponseBackdrop.removeEventListener('click', closeResponse);
+                document.removeEventListener('keydown', handleEscKey);
+            };
+
+            // ESC key handler
+            const handleEscKey = (e) => {
+                if (e.key === 'Escape') {
+                    closeResponse();
                 }
             };
-            document.addEventListener('keydown', closeHandler);
+
+            // Click backdrop to close
+            chatResponseBackdrop.addEventListener('click', closeResponse);
+
+            // ESC key to close
+            document.addEventListener('keydown', handleEscKey);
+
+            // Keep input visible and ready
+            inputContainer.classList.add('active');
+
+            // Scroll to top of response
+            chatResponse.scrollTop = 0;
         }
 
         // Show thinking animation
