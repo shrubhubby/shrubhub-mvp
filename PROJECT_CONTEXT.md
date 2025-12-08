@@ -292,6 +292,14 @@ Decision: Vanilla JS floating suggestion buttons with CSS animations
 Reason: Lightweight, no framework overhead, smooth animations. Text-based links instead of heavy buttons match conversational aesthetic.
 Rejected alternatives: React components (overkill), heavy UI library (slow), static text links (less engaging)
 
+Decision: Enter button positioned inline using canvas text measurement
+Reason: Accurate positioning after user input text, not overlapping. Canvas measureText calculates exact text width for pixel-perfect placement. Pulsing animation draws attention.
+Rejected alternatives: Absolute positioning from right (hidden behind text), fixed position (not aligned with text), CSS-only measurement (inaccurate for variable fonts)
+
+Decision: Separate submitInput() from handleInput()
+Reason: Auto-submit from suggestions needs to work without keyboard event. handleInput() checks for Enter key, submitInput() performs actual submission.
+Rejected alternatives: Calling handleInput() with fake event (brittle), duplicate submission logic (DRY violation), inline submission in suggestion handler (not reusable)
+
 ## 10. CURRENT IMPLEMENTATION STATE
 
 Implemented and working:
@@ -302,7 +310,11 @@ Implemented and working:
 - Suggestion rotation (2-3 random suggestions every 5-20 seconds)
 - Auto-activation of input for users with limited data (within 3 seconds)
 - Activity logging suggestions (watering, fertilizing, pruning, observations)
-- Auto-submit animation with Enter button visual feedback (1.5s pause, 0.3s fade, 0.4s press)
+- Auto-submit animation with Enter button positioned inline after text
+  - Canvas text measurement for accurate positioning (15px spacing after last character)
+  - Pulsing animation (1.2s cycle) to draw attention
+  - Press animation (0.5s) before submission
+  - submitInput() function handles submission without keyboard event
 - API endpoints: /api/chat, /api/gardens, /api/plants, /api/activities
 - Session persistence (localStorage conversation_session_id)
 - Conversation history (last 20 messages in system prompt)
@@ -346,13 +358,14 @@ Known technical debt:
 ## 11. ACTIVE PROBLEMS & EDGE CASES
 
 Bugs:
-- None currently known (suggestions system was not appearing but debug logging resolved it)
+- None currently known
 
 Performance risks:
 - Fetching gardens, plants, activities on every chat request (3 sequential fetches)
 - No limit on conversation_messages table growth (could slow queries over time)
 - Claude API calls are sequential, not streamed (user waits for full response)
 - Suggestion rotation uses setTimeout recursion (could leak memory if not cleaned up)
+- Canvas text measurement on every auto-submit (minimal but measurable overhead)
 
 Security concerns:
 - CORS set to wildcard '*' (should restrict to specific origin in production)
@@ -360,11 +373,13 @@ Security concerns:
 - Supabase anon key exposed in client code (acceptable for RLS-protected data, but consider alternatives)
 - No CSRF protection on API endpoints (Vercel functions don't have built-in protection)
 - No input sanitization on user messages before storing in database
+- Repository is public (was made private but caused Vercel deployment auth issues, reverted to public)
 
 Known flaky behavior:
 - Suggestion rotation interval is random (5-20s), so sometimes two sets appear close together
-- Enter button animation timing can feel slow on fast connections (1.5s pause is fixed)
+- Enter button animation sequence is 3.3s total (1.5s pause + 1.8s pulse), can feel slow on fast connections
 - Chat response dismissal works but no visual feedback for where to click
+- Enter button positioning relies on canvas font matching input font (could break with custom fonts)
 
 ## 12. HOW TO CONTINUE (REQUIRED)
 
@@ -399,7 +414,11 @@ What must NOT be changed without explicit discussion:
 - Claude model (Haiku) - cost implications of switching to Sonnet/Opus
 - Suggestion rotation timing (5-20s) - carefully tuned for engagement
 - Auto-activation timing (3s) - carefully tuned for new user UX
+- Enter button animation timing (3.3s total) - carefully tuned for visibility and engagement
+- Canvas text measurement for Enter button positioning - only accurate solution for variable fonts
+- submitInput() / handleInput() separation - required for keyboard and auto-submit to work correctly
 - System prompt structure (state detection logic is core to AI personality)
 - Database schema (migrations required, affects all users)
 - API endpoint paths (would break existing clients)
 - Supabase RLS policies (security implications)
+- Repository visibility (must remain public for Vercel deployments without Pro plan)
