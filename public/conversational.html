@@ -2742,8 +2742,35 @@
                 // User is authenticated, hide auth overlay
                 document.getElementById('authOverlay').classList.remove('active');
 
-                // Check user data and show suggestions
-                checkUserDataAndShowSuggestions();
+                // For users with little data, activate input and show suggestions within 3 seconds
+                quickCheckAndShowSuggestions(session.access_token);
+            }
+        }
+
+        // Quickly check if user has limited data and auto-show suggestions
+        async function quickCheckAndShowSuggestions(token) {
+            try {
+                // Quick parallel check for gardens and plants
+                const [gardensResponse, plantsResponse] = await Promise.all([
+                    fetch('/api/gardens', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/plants', { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
+
+                const gardensData = await gardensResponse.json();
+                const plantsData = await plantsResponse.json();
+
+                const gardens = gardensData.gardens || [];
+                const plants = plantsData.plants || [];
+
+                // If user has little data, activate input silently and show suggestions
+                if (gardens.length === 0 || plants.length === 0) {
+                    // Activate input silently within 3 seconds
+                    setTimeout(() => {
+                        activateInputSilent();
+                    }, 2500); // 2.5 seconds after page load
+                }
+            } catch (error) {
+                console.error('Error checking user data:', error);
             }
         }
 
