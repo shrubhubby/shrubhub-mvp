@@ -1773,24 +1773,30 @@
             const chatResponse = document.getElementById('chatResponse');
             const chatResponseContent = document.getElementById('chatResponseContent');
             const inputContainer = document.getElementById('inputContainer');
+            const inputField = document.getElementById('inputField');
 
             // Hide thinking, show response
             thinking.classList.remove('active');
             chatResponseContent.textContent = message;
             chatResponse.classList.add('active');
-            inputContainer.classList.add('active');
 
-            // Return to idle state
-            currentState = 'idle';
+            // Set state to show we're viewing a response
+            currentState = 'response';
 
-            // Close response on Enter key
-            const closeHandler = (e) => {
-                if (e.key === 'Enter') {
-                    chatResponse.classList.remove('active');
-                    document.removeEventListener('keydown', closeHandler);
-                }
+            // Close response function
+            const closeResponse = () => {
+                chatResponse.classList.remove('active');
+                currentState = 'idle';
+                inputField.focus();
+                chatResponse.removeEventListener('click', closeResponse);
             };
-            document.addEventListener('keydown', closeHandler);
+
+            // Click anywhere on response to close
+            chatResponse.addEventListener('click', closeResponse);
+
+            // Keep input visible and ready
+            inputContainer.classList.add('active');
+            setTimeout(() => inputField.focus(), 100);
         }
 
         // Show thinking animation
