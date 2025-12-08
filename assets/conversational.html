@@ -851,48 +851,69 @@
 
         /* Auto-submit Enter Button Icon */
         .auto-enter-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-left: 8px;
-            padding: 4px 10px;
-            border: 1.5px solid rgba(90, 118, 88, 0.3);
+            display: inline-block;
+            margin-left: 15px;
+            padding: 6px 12px;
+            border: 1.5px solid rgba(90, 118, 88, 0.4);
             border-radius: 4px;
             font-size: 11px;
             font-weight: 600;
-            color: rgba(90, 118, 88, 0.6);
+            color: rgba(90, 118, 88, 0.7);
             opacity: 0;
-            animation: fadeInIcon 0.3s ease forwards;
+            background: rgba(90, 118, 88, 0.05);
+            animation: fadeInPulse 0.3s ease forwards;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             letter-spacing: 0.5px;
+            white-space: nowrap;
+            vertical-align: middle;
         }
 
-        @keyframes fadeInIcon {
-            to {
+        @keyframes fadeInPulse {
+            0% {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            100% {
                 opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes gentlePulse {
+            0%, 100% {
+                transform: scale(1);
+                border-color: rgba(90, 118, 88, 0.4);
+            }
+            50% {
+                transform: scale(1.05);
+                border-color: rgba(90, 118, 88, 0.6);
             }
         }
 
         @keyframes pressEnter {
             0% {
-                transform: scale(1) translateY(0);
-                border-color: rgba(90, 118, 88, 0.3);
-                background: transparent;
+                transform: scale(1);
+                border-color: rgba(90, 118, 88, 0.4);
+                background: rgba(90, 118, 88, 0.05);
             }
             50% {
-                transform: scale(0.95) translateY(1px);
-                border-color: rgba(90, 118, 88, 0.6);
-                background: rgba(90, 118, 88, 0.1);
+                transform: scale(0.92);
+                border-color: rgba(90, 118, 88, 0.7);
+                background: rgba(90, 118, 88, 0.15);
             }
             100% {
-                transform: scale(1) translateY(0);
-                border-color: rgba(90, 118, 88, 0.3);
-                background: transparent;
+                transform: scale(1);
+                border-color: rgba(90, 118, 88, 0.4);
+                background: rgba(90, 118, 88, 0.05);
             }
         }
 
+        .auto-enter-icon.pulsing {
+            animation: fadeInPulse 0.3s ease forwards, gentlePulse 1.2s ease-in-out infinite 0.3s;
+        }
+
         .auto-enter-icon.pressing {
-            animation: fadeInIcon 0.3s ease forwards, pressEnter 0.4s ease 0.3s forwards;
+            animation: pressEnter 0.5s ease forwards;
         }
 
         /* Chat Response Backdrop */
@@ -1944,52 +1965,10 @@
             }, 500);
         }
 
-        // Handle input submission
+        // Handle input submission from keyboard
         async function handleInput(event) {
             if (event.key !== 'Enter') return;
-
-            const inputField = document.getElementById('inputField');
-            const userInput = inputField.value.trim();
-
-            if (!userInput) return;
-
-            // Transition to thinking state
-            currentState = 'thinking';
-            showThinking();
-            inputField.value = '';
-
-            try {
-                // Get or create session ID
-                let sessionId = localStorage.getItem('conversation_session_id');
-
-                // Call chat API
-                const response = await authenticatedFetch(`${API_BASE_URL}/chat`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        message: userInput,
-                        session_id: sessionId
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to get response');
-                }
-
-                const data = await response.json();
-
-                // Store session ID for future messages
-                if (data.session_id) {
-                    localStorage.setItem('conversation_session_id', data.session_id);
-                }
-
-                // Show AI response in chat format
-                showChatResponse(data.message);
-
-            } catch (error) {
-                console.error('Error calling chat API:', error);
-                showChatResponse(`Error: ${error.message}`);
-            }
+            submitInput();
         }
 
         // Format message with emphasis on key words
@@ -3070,6 +3049,7 @@
         // Send a suggestion message to the chat with animation
         async function sendSuggestionMessage(message) {
             const inputField = document.getElementById('inputField');
+            const inputContainer = inputField.parentElement;
 
             // Fill the input
             inputField.value = message;
@@ -3078,37 +3058,90 @@
             // Wait 1.5 seconds
             await new Promise(resolve => setTimeout(resolve, 1500));
 
-            // Add Enter button icon after the text
-            const enterIcon = document.createElement('span');
-            enterIcon.className = 'auto-enter-icon';
-            enterIcon.textContent = '↵ ENTER';
+            // Create Enter button that appears after the text
+            const enterButton = document.createElement('span');
+            enterButton.className = 'auto-enter-icon pulsing';
+            enterButton.textContent = '↵ ENTER';
+            enterButton.style.position = 'absolute';
+            enterButton.style.left = (inputField.offsetLeft + getTextWidth(message, inputField) + 15) + 'px';
+            enterButton.style.top = '50%';
+            enterButton.style.transform = 'translateY(-50%)';
+            enterButton.style.pointerEvents = 'none';
+            enterButton.style.zIndex = '100';
 
-            // Create a wrapper to position the icon
-            const inputContainer = inputField.parentElement;
-            const iconWrapper = document.createElement('div');
-            iconWrapper.style.position = 'absolute';
-            iconWrapper.style.right = '80px';
-            iconWrapper.style.top = '50%';
-            iconWrapper.style.transform = 'translateY(-50%)';
-            iconWrapper.style.pointerEvents = 'none';
-            iconWrapper.appendChild(enterIcon);
             inputContainer.style.position = 'relative';
-            inputContainer.appendChild(iconWrapper);
+            inputContainer.appendChild(enterButton);
 
-            // Wait for fade in
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // Wait for pulse animation to play
+            await new Promise(resolve => setTimeout(resolve, 1800));
 
-            // Trigger press animation
-            enterIcon.classList.add('pressing');
+            // Switch to press animation
+            enterButton.classList.remove('pulsing');
+            enterButton.classList.add('pressing');
 
             // Wait for press animation
-            await new Promise(resolve => setTimeout(resolve, 700));
+            await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Submit the input
-            handleInput();
+            // Submit the input by simulating Enter key press
+            submitInput();
 
-            // Remove the icon
-            iconWrapper.remove();
+            // Remove the button after submission
+            enterButton.remove();
+        }
+
+        // Helper to calculate text width
+        function getTextWidth(text, inputElement) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const style = window.getComputedStyle(inputElement);
+            context.font = style.font || '16px sans-serif';
+            return context.measureText(text).width;
+        }
+
+        // Submit input without requiring event
+        async function submitInput() {
+            const inputField = document.getElementById('inputField');
+            const userInput = inputField.value.trim();
+
+            if (!userInput) return;
+
+            // Transition to thinking state
+            currentState = 'thinking';
+            showThinking();
+            inputField.value = '';
+
+            try {
+                // Get or create session ID
+                let sessionId = localStorage.getItem('conversation_session_id');
+
+                // Call chat API
+                const response = await authenticatedFetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: userInput,
+                        session_id: sessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to get response');
+                }
+
+                const data = await response.json();
+
+                // Store session ID for future messages
+                if (data.session_id) {
+                    localStorage.setItem('conversation_session_id', data.session_id);
+                }
+
+                // Show AI response in chat format
+                showChatResponse(data.message);
+
+            } catch (error) {
+                console.error('Error calling chat API:', error);
+                showChatResponse(`Error: ${error.message}`);
+            }
         }
 
         // Toggle between login and signup
