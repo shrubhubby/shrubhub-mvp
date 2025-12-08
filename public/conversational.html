@@ -849,6 +849,52 @@
             transform: translateX(-50%) translateY(0);
         }
 
+        /* Auto-submit Enter Button Icon */
+        .auto-enter-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 8px;
+            padding: 4px 10px;
+            border: 1.5px solid rgba(90, 118, 88, 0.3);
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(90, 118, 88, 0.6);
+            opacity: 0;
+            animation: fadeInIcon 0.3s ease forwards;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes fadeInIcon {
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes pressEnter {
+            0% {
+                transform: scale(1) translateY(0);
+                border-color: rgba(90, 118, 88, 0.3);
+                background: transparent;
+            }
+            50% {
+                transform: scale(0.95) translateY(1px);
+                border-color: rgba(90, 118, 88, 0.6);
+                background: rgba(90, 118, 88, 0.1);
+            }
+            100% {
+                transform: scale(1) translateY(0);
+                border-color: rgba(90, 118, 88, 0.3);
+                background: transparent;
+            }
+        }
+
+        .auto-enter-icon.pressing {
+            animation: fadeInIcon 0.3s ease forwards, pressEnter 0.4s ease 0.3s forwards;
+        }
+
         /* Chat Response Backdrop */
         .chat-response-backdrop {
             position: fixed;
@@ -1891,6 +1937,11 @@
             setTimeout(() => {
                 inputField.focus();
             }, 100);
+
+            // Show suggestions as soon as input appears
+            setTimeout(() => {
+                checkUserDataAndShowSuggestions();
+            }, 500);
         }
 
         // Handle input submission
@@ -2395,6 +2446,11 @@
             inputContainer.classList.add('active');
             inputControls.classList.add('active');
             helperText.classList.add('hidden');
+
+            // Show suggestions
+            setTimeout(() => {
+                checkUserDataAndShowSuggestions();
+            }, 500);
         }
 
         // Initialize subcategory radial menus for corner navigation icons
@@ -2798,11 +2854,48 @@
             }, buttons.length * 100 + 400);
         }
 
-        // Send a suggestion message to the chat
-        function sendSuggestionMessage(message) {
+        // Send a suggestion message to the chat with animation
+        async function sendSuggestionMessage(message) {
             const inputField = document.getElementById('inputField');
+
+            // Fill the input
             inputField.value = message;
+            inputField.focus();
+
+            // Wait 1.5 seconds
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            // Add Enter button icon after the text
+            const enterIcon = document.createElement('span');
+            enterIcon.className = 'auto-enter-icon';
+            enterIcon.textContent = '↵ ENTER';
+
+            // Create a wrapper to position the icon
+            const inputContainer = inputField.parentElement;
+            const iconWrapper = document.createElement('div');
+            iconWrapper.style.position = 'absolute';
+            iconWrapper.style.right = '80px';
+            iconWrapper.style.top = '50%';
+            iconWrapper.style.transform = 'translateY(-50%)';
+            iconWrapper.style.pointerEvents = 'none';
+            iconWrapper.appendChild(enterIcon);
+            inputContainer.style.position = 'relative';
+            inputContainer.appendChild(iconWrapper);
+
+            // Wait for fade in
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            // Trigger press animation
+            enterIcon.classList.add('pressing');
+
+            // Wait for press animation
+            await new Promise(resolve => setTimeout(resolve, 700));
+
+            // Submit the input
             handleInput();
+
+            // Remove the icon
+            iconWrapper.remove();
         }
 
         // Toggle between login and signup
