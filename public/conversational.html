@@ -1506,6 +1506,21 @@
             object-fit: cover;
         }
 
+        .skip-photo-link {
+            display: block;
+            text-align: center;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #888;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .skip-photo-link:hover {
+            color: #228B1B;
+            text-decoration: underline;
+        }
+
         .photo-info {
             background: #f8f8f8;
             border-radius: 8px;
@@ -1946,6 +1961,8 @@
                     <img id="plantPhotoPreview" class="photo-preview" style="display: none;" />
                 </div>
                 <input type="file" id="plantPhotoInput" accept="image/*" capture="environment" style="display: none;" onchange="handlePlantPhotoSelected(event)" />
+
+                <a class="skip-photo-link" onclick="skipPhoto()">or continue without a photo</a>
 
                 <div class="photo-info" id="photoInfo" style="display: none;">
                     <div class="info-row"><span>📅</span> <span id="photoDate">-</span></div>
@@ -4059,6 +4076,13 @@
 
         function closePlantRegistration() {
             document.getElementById('plantRegOverlay').classList.remove('active');
+        }
+
+        function skipPhoto() {
+            // Skip directly to step 2 without a photo
+            plantRegState.photo = null;
+            plantRegState.photoBase64 = null;
+            goToStep(2);
         }
 
         function goToStep(step) {
