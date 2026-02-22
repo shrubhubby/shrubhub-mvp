@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 interface HeaderProps {
   onMenuPress?: () => void
   showBack?: boolean
+  onBack?: () => void
   title?: string
   user?: {
     display_name?: string
@@ -23,9 +24,17 @@ const navItems = [
   { href: '/sites', label: 'Sites', icon: '🌍' },
 ]
 
-export function Header({ onMenuPress, showBack, title, user }: HeaderProps) {
+export function Header({ onMenuPress, showBack, onBack, title, user }: HeaderProps) {
   const router = useRouter()
   const pathname = usePathname()
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack()
+    } else {
+      router.back()
+    }
+  }
 
   return (
     <View className="bg-white border-b border-soft/50">
@@ -33,7 +42,7 @@ export function Header({ onMenuPress, showBack, title, user }: HeaderProps) {
       <View className="px-4 h-14 flex-row items-center justify-between">
         {/* Left: Back button or Logo */}
         {showBack ? (
-          <Pressable onPress={() => router.back()} className="p-2 active:bg-soft rounded-lg">
+          <Pressable onPress={handleBack} className="p-2 active:bg-soft rounded-lg">
             <Text className="text-2xl">←</Text>
           </Pressable>
         ) : (

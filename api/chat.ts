@@ -88,43 +88,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('id', sessionId)
     }
 
-    // Fetch conversation history (last 20 messages)
-    const { data: conversationHistory } = await supabase
-      .from('conversation_messages')
-      .select('role, content')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: true })
-      .limit(20)
+    // Fetch conversation history and gardens in parallel
+    const [
+      { data: conversationHistory },
+      { data: gardens },
+      { data: previousSessions }
+    ] = await Promise.all([
+      supabase
+        .from('conversation_messages')
+        .select('role, content')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true })
+        .limit(20),
+      supabase
+        .from('gardens')
+        .select('id, name, description, garden_type, location_description')
+        .eq('gardener_id', gardener.id)
+        .is('archived_at', null),
+      supabase
+        .from('conversation_sessions')
+        .select('id, created_at, last_message_at')
+        .eq('gardener_id', gardener.id)
+        .neq('id', sessionId)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+    ])
 
-    // Fetch user's gardens and plants for context
-    const { data: gardens } = await supabase
-      .from('gardens')
-      .select('id, name, description, garden_type, location_description')
-      .eq('gardener_id', gardener.id)
-      .is('archived_at', null)
+    // Fetch plants (depends on gardens data)
+    const { data: plants } = gardens && gardens.length > 0
+      ? await supabase
+          .from('plants')
+          .select('id, common_name, custom_name, status, health_status, gardens(name), plants_master(scientific_name, care_guide)')
+          .eq('status', 'active')
+          .in('garden_id', gardens.map(g => g.id))
+      : { data: null }
 
-    const { data: plants } = await supabase
-      .from('plants')
-      .select('id, common_name, custom_name, status, health_status, gardens(name), plants_master(scientific_name, care_guide)')
-      .eq('status', 'active')
-      .in('garden_id', gardens?.map(g => g.id) || [])
-
-    // Fetch activities to help with state detection
-    const { data: activities } = await supabase
-      .from('activities')
-      .select('id, activity_type, performed_at, plant_id')
-      .in('plant_id', plants?.map(p => p.id) || [])
-      .order('performed_at', { ascending: false })
-      .limit(50)
-
-    // Check for previous conversation sessions (for returning user detection)
-    const { data: previousSessions } = await supabase
-      .from('conversation_sessions')
-      .select('id, created_at, last_message_at')
-      .eq('gardener_id', gardener.id)
-      .neq('id', sessionId)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
+    // Fetch activities (depends on plants data)
+    const { data: activities } = plants && plants.length > 0
+      ? await supabase
+          .from('activities')
+          .select('id, activity_type, performed_at, plant_id')
+          .in('plant_id', plants.map(p => p.id))
+          .order('performed_at', { ascending: false })
+          .limit(50)
+      : { data: null }
 
     // ===== STATE DETECTION =====
     type UserState = 'brand_new' | 'no_gardens' | 'has_gardens_no_plants' | 'has_plants_no_activities' | 'active' | 'returning'
@@ -310,19 +317,19 @@ Your goal is to help users succeed with their gardening while gently guiding the
 
     const assistantMessage = response.content[0].type === 'text' ? response.content[0].text : ''
 
-    // Store user message
-    await supabase.from('conversation_messages').insert({
-      session_id: sessionId,
-      role: 'user',
-      content: message,
-    })
-
-    // Store assistant message
-    await supabase.from('conversation_messages').insert({
-      session_id: sessionId,
-      role: 'assistant',
-      content: assistantMessage,
-    })
+    // Store user and assistant messages in parallel
+    await Promise.all([
+      supabase.from('conversation_messages').insert({
+        session_id: sessionId,
+        role: 'user',
+        content: message,
+      }),
+      supabase.from('conversation_messages').insert({
+        session_id: sessionId,
+        role: 'assistant',
+        content: assistantMessage,
+      })
+    ])
 
     return res.status(200).json({
       success: true,

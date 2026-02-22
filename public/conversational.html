@@ -1637,6 +1637,10 @@
         let modalOrigin = { x: 0, y: 0, width: 0, height: 0 };
         let recognition = null;
         let isVoiceActive = false;
+        let systemAvailable = true; // Track if the system is working
+
+        // System unavailable message
+        const systemUnavailableMessage = "System temporarily unavailable. Please try again later. 🔧";
 
         // Dynamic messages that rotate in idle state
         const dynamicMessages = [
@@ -1922,11 +1926,22 @@
         // Rotate dynamic messages
         function startMessageRotation() {
             messageTimer = setInterval(() => {
-                if (currentState === 'idle') {
+                if (currentState === 'idle' && systemAvailable) {
                     messageIndex = (messageIndex + 1) % dynamicMessages.length;
                     updateCenterMessage(dynamicMessages[messageIndex]);
                 }
             }, 8000);
+        }
+
+        // Show system unavailable state
+        function showSystemUnavailable() {
+            systemAvailable = false;
+            updateCenterMessage(systemUnavailableMessage);
+            // Disable corner nav items
+            document.querySelectorAll('.corner-nav-item').forEach(el => {
+                el.style.opacity = '0.3';
+                el.style.pointerEvents = 'none';
+            });
         }
 
         function updateCenterMessage(text) {
@@ -2704,25 +2719,30 @@
         const SUPABASE_URL = 'https://pfkxhoqlfflgjlovgenc.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBma3hob3FsZmZsZ2psb3ZnZW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5OTUxNDMsImV4cCI6MjA4MDU3MTE0M30.KlTtM5A9fB67RxXllMEG9aGgGwdX5drnwAKsyfsaER8';
 
-        // Initialize Supabase client
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Initialize Supabase client (use different name to avoid conflict with CDN global)
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // Auth state
         let isSignupMode = false;
 
         // Check authentication on page load
         async function checkAuth() {
-            const { data: { session } } = await supabase.auth.getSession();
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
 
-            if (!session) {
-                // Show auth overlay
-                document.getElementById('authOverlay').classList.add('active');
-            } else {
-                // User is authenticated, hide auth overlay
-                document.getElementById('authOverlay').classList.remove('active');
+                if (!session) {
+                    // Show auth overlay
+                    document.getElementById('authOverlay').classList.add('active');
+                } else {
+                    // User is authenticated, hide auth overlay
+                    document.getElementById('authOverlay').classList.remove('active');
 
-                // For users with little data, activate input and show suggestions within 3 seconds
-                quickCheckAndShowSuggestions(session.access_token);
+                    // For users with little data, activate input and show suggestions within 3 seconds
+                    quickCheckAndShowSuggestions(session.access_token);
+                }
+            } catch (error) {
+                console.error('Authentication check failed:', error);
+                throw error; // Re-throw to be caught by the main initialization handler
             }
         }
 
@@ -2760,7 +2780,7 @@
         // Check user's data and show relevant suggestions
         async function checkUserDataAndShowSuggestions() {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
+                const { data: { session } } = await supabaseClient.auth.getSession();
                 if (!session) return;
 
                 const token = session.access_token;
@@ -3199,7 +3219,7 @@
             try {
                 if (isSignupMode) {
                     // Sign up
-                    const { data, error } = await supabase.auth.signUp({
+                    const { data, error } = await supabaseClient.auth.signUp({
                         email,
                         password,
                         options: {
@@ -3217,7 +3237,7 @@
                     showToast('Welcome to ShrubHub!');
                 } else {
                     // Sign in
-                    const { data, error } = await supabase.auth.signInWithPassword({
+                    const { data, error } = await supabaseClient.auth.signInWithPassword({
                         email,
                         password,
                     });
@@ -3698,18 +3718,23 @@
 
         // Load initial data when page loads
         window.addEventListener('load', async () => {
-            console.log('Checking authentication...');
-            await checkAuth();
+            try {
+                console.log('Checking authentication...');
+                await checkAuth();
 
-            // Only load data if authenticated
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                console.log('Loading user data...');
-                await Promise.all([
-                    fetchPlants(),
-                    fetchGardens()
-                ]);
-                console.log('User data loaded');
+                // Only load data if authenticated
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) {
+                    console.log('Loading user data...');
+                    await Promise.all([
+                        fetchPlants(),
+                        fetchGardens()
+                    ]);
+                    console.log('User data loaded');
+                }
+            } catch (error) {
+                console.error('System initialization error:', error);
+                showSystemUnavailable();
             }
         });
     </script>

@@ -90,9 +90,13 @@ export interface Database {
           location_lat: number | null
           location_lng: number | null
           acquired_date: string
-          acquisition_source: 'seed' | 'seedling_purchased' | 'mature_purchased' | 'gift' | 'propagation' | 'field_extraction' | 'volunteer' | 'unknown'
+          acquisition_source: 'seed' | 'seedling_purchased' | 'mature_purchased' | 'gift' | 'propagation' | 'field_extraction' | 'volunteer' | 'unknown' | 'shrubhub_exchange' | 'user_defined'
           acquisition_location: string | null
           acquisition_notes: string | null
+          user_acquisition_source_id: string | null
+          clone_number: number | null
+          editable_id: string | null
+          registration_batch_id: string | null
           status: 'seed' | 'germinating' | 'seedling' | 'vegetative' | 'flowering' | 'fruiting' | 'dormant' | 'alive' | 'struggling' | 'dead' | 'harvested' | 'adopted_out'
           health_status: 'healthy' | 'needs_attention' | 'sick' | 'pest_issue' | 'dead'
           planted_date: string | null
@@ -198,6 +202,37 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['conversation_history']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['conversation_history']['Insert']>
+      }
+      user_acquisition_sources: {
+        Row: {
+          id: string
+          gardener_id: string
+          name: string
+          description: string | null
+          usage_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['user_acquisition_sources']['Row'], 'id' | 'created_at' | 'updated_at' | 'usage_count'>
+        Update: Partial<Database['public']['Tables']['user_acquisition_sources']['Insert']>
+      }
+      plant_registration_batches: {
+        Row: {
+          id: string
+          gardener_id: string
+          garden_id: string | null
+          parent_plant_id: string | null
+          batch_type: 'clone' | 'seed' | 'purchase' | 'mixed'
+          total_count: number
+          registered_count: number
+          photo_method: 'group_photo' | 'individual' | 'qr_scan' | 'no_photo' | null
+          status: 'in_progress' | 'completed' | 'cancelled'
+          metadata: Json
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['plant_registration_batches']['Row'], 'id' | 'created_at' | 'registered_count' | 'status' | 'metadata'>
+        Update: Partial<Database['public']['Tables']['plant_registration_batches']['Insert']>
       }
     }
   }
