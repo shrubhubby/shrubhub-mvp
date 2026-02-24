@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/Button'
 import { PlantGrid } from '@/components/plant/PlantGrid'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { RoleBadge } from '@/components/garden'
+
+type Role = 'owner' | 'admin' | 'editor' | 'viewer'
 
 export default function GardenDetailScreen() {
   const { id } = useLocalSearchParams()
@@ -14,6 +17,8 @@ export default function GardenDetailScreen() {
   const [garden, setGarden] = useState<any>(null)
   const [plants, setPlants] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [userRole, setUserRole] = useState<Role | null>(null)
+  const [memberCount, setMemberCount] = useState(0)
 
   useFocusEffect(
     useCallback(() => {
@@ -25,6 +30,15 @@ export default function GardenDetailScreen() {
 
   const loadGardenDetails = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      // Get gardener ID
+      const { data: gardener } = await supabase
+        .from('gardeners')
+        .select('id')
+        .eq('auth_user_id', user?.id)
+        .single()
+
       // Load garden
       const { data: gardenData } = await supabase
         .from('gardens')
@@ -33,6 +47,28 @@ export default function GardenDetailScreen() {
         .single()
 
       setGarden(gardenData)
+
+      // Load user's role in this garden
+      if (gardener && id) {
+        const { data: membership } = await supabase
+          .from('garden_members')
+          .select('role')
+          .eq('garden_id', id)
+          .eq('gardener_id', gardener.id)
+          .single()
+
+        if (membership) {
+          setUserRole(membership.role as Role)
+        }
+
+        // Get member count
+        const { count } = await supabase
+          .from('garden_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('garden_id', id)
+
+        setMemberCount(count || 0)
+      }
 
       // Load plants in this garden
       if (gardenData) {
@@ -149,28 +185,55 @@ export default function GardenDetailScreen() {
             />
           </View>
 
+          {/* Members Section */}
+          <Card onPress={() => router.push(`/gardens/${id}/members`)}>
+            <CardContent className="py-3">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center gap-3">
+                  <Text className="text-2xl">👥</Text>
+                  <View>
+                    <Text className="text-base font-semibold text-coal">Members</Text>
+                    <Text className="text-sm text-coal/60">
+                      {memberCount} member{memberCount !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-row items-center gap-2">
+                  {userRole && <RoleBadge role={userRole} />}
+                  <Text className="text-coal/40">→</Text>
+                </View>
+              </View>
+            </CardContent>
+          </Card>
+
           {/* Actions */}
           <Card>
             <CardContent className="gap-3">
               <View className="flex-row gap-3">
-                <Button
-                  variant="primary"
-                  onPress={() => router.push(`/gardens/${id}/edit`)}
-                  className="flex-1"
-                >
-                  <Text className="text-white font-medium">✏️ Edit Garden</Text>
-                </Button>
-                <Button
-                  variant="outline"
-                  onPress={handleArchiveGarden}
-                  className="flex-1"
-                >
-                  <Text className="text-coal font-medium">🗄️ Archive</Text>
-                </Button>
+                {(userRole === 'owner' || userRole === 'admin') && (
+                  <Button
+                    variant="primary"
+                    onPress={() => router.push(`/gardens/${id}/edit`)}
+                    className="flex-1"
+                  >
+                    <Text className="text-white font-medium">Edit Garden</Text>
+                  </Button>
+                )}
+                {userRole === 'owner' && (
+                  <Button
+                    variant="outline"
+                    onPress={handleArchiveGarden}
+                    className="flex-1"
+                  >
+                    <Text className="text-coal font-medium">Archive</Text>
+                  </Button>
+                )}
               </View>
-              <Text className="text-xs text-coal/60">
-                Archiving preserves plants but hides the garden from your active list
-              </Text>
+              {userRole === 'owner' && (
+                <Text className="text-xs text-coal/60">
+                  Archiving preserves plants but hides the garden from your active list
+                </Text>
+              )}
             </CardContent>
           </Card>
 
