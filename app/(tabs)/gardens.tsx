@@ -7,10 +7,23 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { RoleBadge } from '@/components/garden'
+
+type Role = 'owner' | 'admin' | 'editor' | 'viewer'
+
+interface GardenWithRole {
+  id: string
+  name: string
+  description: string | null
+  garden_type: string | null
+  location_description: string | null
+  is_primary: boolean
+  role: Role
+}
 
 export default function GardensScreen() {
   const router = useRouter()
-  const [gardens, setGardens] = useState<any[]>([])
+  const [gardens, setGardens] = useState<GardenWithRole[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [plantCounts, setPlantCounts] = useState<Record<string, number>>({})
 
@@ -40,16 +53,38 @@ export default function GardensScreen() {
         return
       }
 
-      // Get all gardens
-      const { data: gardensData } = await supabase
-        .from('gardens')
-        .select('*')
+      // Get all gardens user is a member of (via garden_members)
+      const { data: memberships } = await supabase
+        .from('garden_members')
+        .select(`
+          role,
+          garden:gardens (
+            id,
+            name,
+            description,
+            garden_type,
+            location_description,
+            is_primary,
+            archived_at
+          )
+        `)
         .eq('gardener_id', gardener.id)
-        .is('archived_at', null)
-        .order('is_primary', { ascending: false })
-        .order('created_at', { ascending: false })
 
-      setGardens(gardensData || [])
+      // Filter out archived gardens and format data
+      const gardensData: GardenWithRole[] = (memberships || [])
+        .filter(m => m.garden && !(m.garden as any).archived_at)
+        .map(m => ({
+          ...(m.garden as any),
+          role: m.role as Role,
+        }))
+        .sort((a, b) => {
+          // Primary first, then by name
+          if (a.is_primary && !b.is_primary) return -1
+          if (!a.is_primary && b.is_primary) return 1
+          return a.name.localeCompare(b.name)
+        })
+
+      setGardens(gardensData)
 
       // Get plant counts for each garden
       if (gardensData && gardensData.length > 0) {
@@ -159,26 +194,32 @@ export default function GardensScreen() {
           ) : (
             <View className="gap-4">
               {gardens.map((garden) => (
-                <Card key={garden.id}>
+                <Card
+                  key={garden.id}
+                  onPress={() => router.push(`/gardens/${garden.id}`)}
+                >
                   <CardHeader>
                     <View className="flex-row items-start justify-between">
                       <View className="flex-1">
                         <View className="flex-row items-center gap-2">
-                          <Text className="text-2xl">{getGardenTypeEmoji(garden.garden_type)}</Text>
+                          <Text className="text-2xl">{getGardenTypeEmoji(garden.garden_type || 'mixed')}</Text>
                           <Text className="text-xl font-semibold text-coal flex-1">
                             {garden.name}
                           </Text>
-                          {garden.is_primary && (
-                            <Badge variant="healthy">
-                              <Text className="text-xs font-medium">Primary</Text>
-                            </Badge>
-                          )}
                         </View>
                         {garden.location_description && (
                           <Text className="text-sm text-coal/60 mt-1">
-                            📍 {garden.location_description}
+                            {garden.location_description}
                           </Text>
                         )}
+                      </View>
+                      <View className="items-end gap-1">
+                        {garden.is_primary && (
+                          <Badge variant="healthy">
+                            <Text className="text-xs font-medium">Primary</Text>
+                          </Badge>
+                        )}
+                        <RoleBadge role={garden.role} />
                       </View>
                     </View>
                   </CardHeader>
@@ -211,24 +252,18 @@ export default function GardensScreen() {
                       )}
                     </View>
 
-                    {/* Actions */}
-                    <View className="flex-row gap-2 mt-2">
-                      {!garden.is_primary && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onPress={() => handleSetPrimary(garden.id)}
-                          className="flex-1"
-                        >
-                          <Text className="text-coal font-medium text-sm">Set as Primary</Text>
-                        </Button>
-                      )}
-                      <Link href={`/gardens/${garden.id}`} asChild>
-                        <Button variant="primary" size="sm" className="flex-1">
-                          <Text className="text-white font-medium text-sm">View Details</Text>
-                        </Button>
-                      </Link>
-                    </View>
+                    {/* Set Primary action - only for owners */}
+                    {!garden.is_primary && garden.role === 'owner' && (
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation()
+                          handleSetPrimary(garden.id)
+                        }}
+                        className="self-start px-3 py-1 rounded-full bg-coal/5"
+                      >
+                        <Text className="text-xs text-coal">Set as Primary</Text>
+                      </Pressable>
+                    )}
                   </CardContent>
                 </Card>
               ))}

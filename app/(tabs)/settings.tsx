@@ -1,28 +1,77 @@
-import React, { useState, useEffect } from 'react'
-import { View, Text, ScrollView } from 'react-native'
-import { useRouter } from 'expo-router'
+import React, { useState, useEffect, useCallback } from 'react'
+import { View, Text, ScrollView, Pressable, Alert } from 'react-native'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { RoleBadge, InviteModal } from '@/components/garden'
+
+type Role = 'owner' | 'admin' | 'editor' | 'viewer'
+
+interface Garden {
+  id: string
+  name: string
+}
 
 export default function SettingsScreen() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [displayName, setDisplayName] = useState('Gardener')
+  const [ownedGardens, setOwnedGardens] = useState<Garden[]>([])
+  const [selectedGardenForInvite, setSelectedGardenForInvite] = useState<Garden | null>(null)
+  const [showInviteModal, setShowInviteModal] = useState(false)
 
-  useEffect(() => {
-    loadUserData()
-  }, [])
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData()
+    }, [])
+  )
 
   const loadUserData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       setUserEmail(user.email || '')
+
+      // Get gardener
+      const { data: gardener } = await supabase
+        .from('gardeners')
+        .select('id, display_name')
+        .eq('auth_user_id', user.id)
+        .single()
+
+      if (gardener) {
+        setDisplayName(gardener.display_name || 'Gardener')
+
+        // Get gardens where user is owner or admin (can invite)
+        const { data: memberships } = await supabase
+          .from('garden_members')
+          .select(`
+            role,
+            garden:gardens (
+              id,
+              name
+            )
+          `)
+          .eq('gardener_id', gardener.id)
+          .in('role', ['owner', 'admin'])
+
+        if (memberships) {
+          const gardens = memberships
+            .filter(m => m.garden)
+            .map(m => m.garden as unknown as Garden)
+          setOwnedGardens(gardens)
+        }
+      }
     }
+  }
+
+  const handleInvite = (garden: Garden) => {
+    setSelectedGardenForInvite(garden)
+    setShowInviteModal(true)
   }
 
   const handleLogout = async () => {
@@ -69,6 +118,52 @@ export default function SettingsScreen() {
             </CardContent>
           </Card>
 
+          {/* Members & Invites */}
+          <Card>
+            <CardHeader>
+              <View className="flex-row items-center gap-2">
+                <Text className="text-xl">👥</Text>
+                <Text className="text-xl font-semibold text-coal">Members & Invites</Text>
+              </View>
+            </CardHeader>
+            <CardContent className="gap-4">
+              <Text className="text-sm text-coal/60">
+                Invite family or friends to help manage your gardens
+              </Text>
+
+              {ownedGardens.length === 0 ? (
+                <Text className="text-sm text-coal/40">
+                  No gardens available for inviting members
+                </Text>
+              ) : (
+                <View className="gap-2">
+                  {ownedGardens.map(garden => (
+                    <Pressable
+                      key={garden.id}
+                      onPress={() => handleInvite(garden)}
+                      className="flex-row items-center justify-between p-3 bg-soft rounded-lg"
+                    >
+                      <Text className="font-medium text-coal">{garden.name}</Text>
+                      <Text className="text-sm text-forest">Invite +</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              {/* Join a garden */}
+              <Pressable
+                onPress={() => router.push('/invite')}
+                className="flex-row items-center justify-between p-3 bg-forest/10 rounded-lg"
+              >
+                <View>
+                  <Text className="font-medium text-forest">Join a Garden</Text>
+                  <Text className="text-xs text-coal/60">Enter an invite code</Text>
+                </View>
+                <Text className="text-forest">→</Text>
+              </Pressable>
+            </CardContent>
+          </Card>
+
           {/* Notifications */}
           <Card>
             <CardHeader>
@@ -108,6 +203,19 @@ export default function SettingsScreen() {
       </ScrollView>
 
       <BottomNav />
+
+      {/* Invite Modal */}
+      {selectedGardenForInvite && (
+        <InviteModal
+          visible={showInviteModal}
+          onClose={() => {
+            setShowInviteModal(false)
+            setSelectedGardenForInvite(null)
+          }}
+          gardenId={selectedGardenForInvite.id}
+          gardenName={selectedGardenForInvite.name}
+        />
+      )}
     </View>
   )
 }
