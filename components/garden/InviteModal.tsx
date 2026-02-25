@@ -22,6 +22,11 @@ export function InviteModal({ visible, onClose, gardenId, gardenName }: InviteMo
   const [isLoading, setIsLoading] = useState(false)
   const [generatedCode, setGeneratedCode] = useState<string | null>(null)
 
+  // Don't render the modal at all when not visible
+  if (!visible) {
+    return null
+  }
+
   const roles: { value: InviteRole; label: string; description: string }[] = [
     { value: 'admin', label: 'Admin', description: 'Can manage members and settings' },
     { value: 'editor', label: 'Editor', description: 'Can add and edit plants' },
