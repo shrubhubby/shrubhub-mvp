@@ -1,0 +1,27 @@
+{
+  "colors": {
+    "deep_forest_green": "#228B1B",
+    "leaf_light": "#A6D856",
+    "leaf_dark": "#4BA83E",
+    "ocean_blue_deep": "#0A6F9C",
+    "ocean_blue_mid": "#2DA1C4",
+    "ocean_blue_light": "#66CDE1",
+    "ocean_mist": "#C5EEF4",
+    "neutral_dark": "#333333",
+    "neutral_light": "#F2F4F4"
+  },
+  "typography": {
+    "header1": {
+      "font": "Roboto",
+      "weight": "Bold"
+    },
+    "header2": {
+      "font": "Roboto",
+      "weight": "Semibold"
+    },
+    "body": {
+      "font": "Roboto",
+      "weight": "Regular"
+    }
+  }
+}

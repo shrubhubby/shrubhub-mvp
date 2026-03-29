@@ -1,424 +1,878 @@
-# PROJECT CONTEXT (AUTHORITATIVE)
-
-## 1. PROJECT IDENTITY
-- Project name: ShrubHub Mobile
-- Repository purpose: Cross-platform (Web, iOS, Android) gardening application with conversational AI interface for tracking gardens, plants, and care activities. Primary interface is conversational web UI, with mobile apps as secondary.
-- Primary user(s): Home gardeners who want to track their plants, log care activities, and receive expert gardening advice from an AI personality named "Early" (a Southern NC master gardener).
-- Explicit non-goals: Not a plant identification app, not a social network, not a marketplace. Focus is on personal garden tracking and conversational AI guidance.
-
-## 2. EXECUTION CONSTRAINTS
-- Runtime constraints: Web runs on Vercel serverless functions. Mobile apps run via Expo. All API endpoints must respond within 10 seconds (Vercel timeout).
-- Hosting / platform constraints: Vercel for web deployment. Supabase for database and auth. Anthropic Claude API for conversational AI (currently Haiku 3).
-- Language / framework constraints: TypeScript required. React Native via Expo for cross-platform. No native Swift/Kotlin code allowed (Expo constraints).
-- Security constraints: Supabase Row Level Security (RLS) enforced. All API endpoints require Bearer token authentication. CORS enabled for web deployment.
-- Regulatory or compliance constraints: None currently. User data stored in Supabase (US region).
-
-## 3. TECH STACK (LOCKED UNLESS OVERRIDDEN)
-- Frontend: React Native 0.81.5, React 19.1.0, Expo 54, NativeWind 4 (Tailwind for RN)
-- Backend: Vercel Serverless Functions (TypeScript), Supabase (PostgreSQL + Auth)
-- Shared libraries: @supabase/supabase-js, @anthropic-ai/sdk, Expo Router
-- Package managers: npm (lockfile committed)
-- Build tools: Expo CLI, TypeScript 5.9
-- Test tools: None currently implemented
-- Lint / format tools: None currently configured
-
-## 4. SYSTEM ARCHITECTURE
-- High-level flow:
-  1. User loads conversational.html (public/conversational.html - primary interface)
-  2. User authenticates via Supabase Auth (email/password)
-  3. User interacts with Early (AI) via chat interface
-  4. Chat messages POST to /api/chat with session token
-  5. /api/chat fetches user context (gardens, plants, activities) from Supabase
-  6. /api/chat builds dynamic system prompt based on user state
-  7. /api/chat calls Claude API with context and conversation history
-  8. Response stored in conversation_messages table and returned to UI
-  9. User can also use traditional tab-based mobile UI (/app route)
-
-- Separation of concerns:
-  - /public/conversational.html: Standalone conversational UI (vanilla JS, primary interface)
-  - /api/*.ts: Vercel serverless API endpoints (TypeScript)
-  - /app/: Expo Router mobile UI (React Native, secondary interface)
-  - /lib/supabase: Supabase client initialization
-  - /types: Generated TypeScript types from Supabase schema
-
-- State management strategy:
-  - Conversational UI: No React state, vanilla JS with direct DOM manipulation
-  - Mobile UI: React hooks (useState, useEffect), AsyncStorage for session persistence
-  - Server: Stateless, all state in Supabase tables
-
-- Error handling strategy:
-  - API endpoints: try/catch with 500 status codes, console.error for debugging
-  - Frontend: Display user-friendly error messages in chat response
-  - No global error boundary currently
-
-- Logging / observability approach:
-  - Console.error in API endpoints
-  - No structured logging, APM, or error tracking service
-  - Conversation history stored in conversation_messages table
-
-## 5. REPOSITORY STRUCTURE
-Repo root: /Users/chris.larsen/Documents/personal/ShrubHub/mobile
-
-Key directories and purpose:
-- /api: Vercel serverless functions (chat.ts, gardens.ts, plants.ts, activities.ts)
-- /app: Expo Router pages (mobile/native UI, secondary interface)
-  - /(auth): Login, signup screens
-  - /(tabs): Main tab navigation (index, gardens, plants, activities, chat, settings)
-  - /gardens/[id]: Dynamic garden detail routes
-  - /plants/[id]: Dynamic plant detail routes
-- /public: Static web assets
-  - conversational.html: PRIMARY INTERFACE - standalone conversational AI UI
-- /assets: Static assets copied during build (includes conversational.html)
-- /components: Reusable React Native components (ui/, layout/, plant/, chat/)
-- /lib: Utility code (supabase client)
-- /types: TypeScript types (database.types.ts auto-generated from Supabase)
-- /supabase/migrations: Database migration SQL files
-
-Entry points:
-- Web: public/conversational.html (index.html after build)
-- Mobile: expo-router/entry (app/_layout.tsx)
-- API: api/*.ts (Vercel serverless functions)
-
-Generated / excluded files:
-- node_modules/, .expo/, .vercel/, dist/
-- .env (secrets, not committed)
-- .DS_Store (macOS metadata)
-
-Anything intentionally weird or non-standard:
-- Build command swaps index.html with conversational.html (vercel.json buildCommand)
-- Original Expo web build moved to _app.html, conversational.html becomes root
-- Assets folder duplicates conversational.html for mobile bundling
-- conversational.html is vanilla JS, not React (intentional for simplicity)
-
-## 6. API & INTERFACE CONTRACTS
-
-Internal module boundaries:
-- /api endpoints are stateless, no shared state between requests
-- Each endpoint independently verifies auth token and fetches user context
-- Conversational UI (public/conversational.html) is completely decoupled from Expo app
-
-External APIs (routes, methods, payloads):
-- POST /api/chat
-  - Headers: Authorization: Bearer {supabase_token}
-  - Body: { message: string, session_id?: string }
-  - Response: { success: true, message: string, session_id: string }
-
-- GET /api/gardens
-  - Headers: Authorization: Bearer {supabase_token}
-  - Response: { gardens: Garden[] }
-
-- POST /api/gardens
-  - Headers: Authorization: Bearer {supabase_token}
-  - Body: { name: string, description?: string, garden_type: string, ... }
-  - Response: { success: true, garden: Garden }
-
-- GET /api/plants
-  - Headers: Authorization: Bearer {supabase_token}
-  - Query: ?garden_id={uuid} (optional)
-  - Response: { plants: Plant[] }
-
-- POST /api/plants
-  - Headers: Authorization: Bearer {supabase_token}
-  - Body: { garden_id: string, common_name: string, ... }
-  - Response: { success: true, plant: Plant }
-
-- GET /api/activities
-  - Headers: Authorization: Bearer {supabase_token}
-  - Query: ?plant_id={uuid}&activity_type={string}&limit={number}
-  - Response: { activities: Activity[] }
-
-- POST /api/activities
-  - Headers: Authorization: Bearer {supabase_token}
-  - Body: { plant_id: string, activity_type: string, notes?: string, ... }
-  - Response: { success: true, activity: Activity }
-
-Auth boundaries:
-- All /api endpoints require valid Supabase session token in Authorization header
-- Token verified via supabase.auth.getUser(token)
-- Gardener ID resolved from auth_user_id before any data access
-- Row Level Security (RLS) policies enforce gardener_id filtering in Supabase
-
-Versioning strategy:
-- No API versioning currently
-- Breaking changes deployed directly (small user base)
-
-## 7. DATA MODELS
-
-Entities:
-- gardeners: User profiles linked to auth
-- gardens: Garden spaces owned by gardeners
-- plants: Individual plants in gardens
-- plants_master: Reference data for plant species (not directly user-editable)
-- plant_photos: Photos of plants
-- activities: Care activities performed on plants (watering, fertilizing, etc)
-- observations: Text observations about plants
-- care_reminders: Scheduled care tasks
-- conversation_sessions: Chat session metadata
-- conversation_messages: Individual chat messages
-
-Key fields (see types/database.types.ts for full schema):
-
-gardeners:
-- id: uuid (PK)
-- auth_user_id: uuid (FK to auth.users)
-- email: string
-- display_name: string | null
-- timezone: string (default UTC)
-- measurement_system: 'imperial' | 'metric'
-- notification_preferences: json
-- bot_personality_settings: json
-
-gardens:
-- id: uuid (PK)
-- gardener_id: uuid (FK)
-- name: string
-- garden_type: enum (indoor, outdoor, container, raised_bed, etc)
-- location_lat/lng: number | null
-- sun_exposure: enum | null
-- is_primary: boolean
-- archived_at: timestamp | null
-
-plants:
-- id: uuid (PK)
-- garden_id: uuid (FK)
-- plant_master_id: uuid | null (FK to plants_master)
-- common_name: string
-- custom_name: string | null
-- status: enum (seed, germinating, alive, dead, etc)
-- health_status: enum (healthy, needs_attention, sick, pest_issue, dead)
-- acquired_date: date
-- acquisition_source: enum
-- archived_at: timestamp | null
-
-activities:
-- id: uuid (PK)
-- plant_id: uuid (FK)
-- activity_type: enum (watering, fertilizing, pruning, etc)
-- notes: string | null
-- quantity: number | null
-- quantity_unit: string | null
-- performed_at: timestamp
-- created_via: enum (manual, bot, web_app, etc)
-
-conversation_sessions:
-- id: uuid (PK)
-- gardener_id: uuid (FK)
-- created_at: timestamp
-- last_message_at: timestamp
-
-conversation_messages:
-- id: uuid (PK)
-- session_id: uuid (FK)
-- role: enum (user, assistant, system)
-- content: text
-- created_at: timestamp
-
-Relationships:
-- gardeners 1:N gardens
-- gardens 1:N plants
-- plants 1:N activities
-- plants 1:N observations
-- plants 1:N plant_photos
-- plants 1:N care_reminders
-- gardeners 1:N conversation_sessions
-- conversation_sessions 1:N conversation_messages
-
-Persistence strategy:
-- Supabase PostgreSQL database
-- Row Level Security (RLS) enabled on all tables
-- All queries go through Supabase client (enforces RLS)
-
-Migration strategy:
-- SQL migrations in /supabase/migrations/
-- Applied manually via Supabase dashboard or CLI
-- No automated migration runner in app code
-
-## 8. ENVIRONMENT & SECRETS
-
-Required environment variables:
-- EXPO_PUBLIC_SUPABASE_URL: Supabase project URL
-- EXPO_PUBLIC_SUPABASE_ANON_KEY: Supabase anon/public API key
-- ANTHROPIC_API_KEY: Claude API key for chat endpoint
-
-Scope:
-- EXPO_PUBLIC_*: Available in frontend build-time (Expo convention)
-- ANTHROPIC_API_KEY: Backend runtime only (Vercel environment variable)
-
-How secrets are injected in prod:
-- Frontend: Expo build process injects EXPO_PUBLIC_* vars
-- Backend: Vercel injects environment variables at runtime
-- API endpoints access via process.env
-
-Files intentionally NOT committed:
-- .env: Local development secrets
-- .env.local, .env.production: Environment-specific overrides
-- .vercel/: Vercel deployment metadata
-
-## 9. IMPORTANT DESIGN DECISIONS (DO NOT REVISIT CASUALLY)
-
-Decision: Use vanilla JS for conversational UI instead of React
-Reason: Faster load time, simpler deployment, no build step for primary interface. Conversational UI is standalone page that needs to be extremely fast.
-Rejected alternatives: React (too heavy for single page), Vue (unfamiliar to team), Svelte (compiler adds complexity)
-
-Decision: Swap index.html with conversational.html during build
-Reason: Primary interface should be at root (/), traditional mobile app at /app. Vercel build command handles swap.
-Rejected alternatives: Using React app as root (slower, more complex), subdomain for conversational UI (requires DNS setup)
-
-Decision: Duplicate conversational.html in /public and /assets
-Reason: /public for Vercel web deployment, /assets for Expo mobile bundling. Keep in sync with cp command.
-Rejected alternatives: Single source with symlink (doesn't work in Vercel), build-time copy (adds complexity)
-
-Decision: Use Claude Haiku (not Sonnet/Opus) for chat
-Reason: Cost optimization for high-volume conversational interface. 1024 max_tokens sufficient for chat responses.
-Rejected alternatives: Sonnet (too expensive for chat volume), GPT-4 (want Claude's personality), open-source LLM (quality concerns)
-
-Decision: Dynamic system prompt based on user state
-Reason: Personalize AI guidance based on onboarding progress (no gardens, no plants, no activities, etc). Better UX than generic responses.
-Rejected alternatives: Static system prompt (less helpful), RAG system (overengineered for current scale), fine-tuned model (too expensive)
-
-Decision: Store conversation history in Supabase, not client-side
-Reason: Persist across devices, enable future analytics, maintain context in system prompt. Fetch last 20 messages for context.
-Rejected alternatives: LocalStorage (doesn't sync), no history (poor UX), infinite history (context length issues)
-
-Decision: Show 2-3 rotating suggestion buttons every 5-20 seconds
-Reason: Encourage engagement without overwhelming user. Randomization prevents repetition. State-based suggestions guide onboarding.
-Rejected alternatives: Static buttons (boring), all suggestions at once (cluttered), no suggestions (lower engagement)
-
-Decision: Auto-activate input and show suggestions within 3 seconds for users with limited data
-Reason: Proactive engagement for new users who might not know what to do. Reduces time to first interaction.
-Rejected alternatives: Wait for user click (passive), show suggestions after first message (too late), always auto-activate (annoying for returning users)
-
-Decision: Vanilla JS floating suggestion buttons with CSS animations
-Reason: Lightweight, no framework overhead, smooth animations. Text-based links instead of heavy buttons match conversational aesthetic.
-Rejected alternatives: React components (overkill), heavy UI library (slow), static text links (less engaging)
-
-Decision: Enter button positioned inline using canvas text measurement
-Reason: Accurate positioning after user input text, not overlapping. Canvas measureText calculates exact text width for pixel-perfect placement. Pulsing animation draws attention.
-Rejected alternatives: Absolute positioning from right (hidden behind text), fixed position (not aligned with text), CSS-only measurement (inaccurate for variable fonts)
-
-Decision: Separate submitInput() from handleInput()
-Reason: Auto-submit from suggestions needs to work without keyboard event. handleInput() checks for Enter key, submitInput() performs actual submission.
-Rejected alternatives: Calling handleInput() with fake event (brittle), duplicate submission logic (DRY violation), inline submission in suggestion handler (not reusable)
-
-## 10. CURRENT IMPLEMENTATION STATE
-
-Implemented and working:
-- Conversational UI (public/conversational.html) with auth overlay, input system, chat responses
-- AI personality "Early" with Southern NC master gardener tone
-- Dynamic system prompt based on user state (brand_new, no_gardens, has_gardens_no_plants, has_plants_no_activities, active, returning)
-- Floating suggestion system with 20+ suggestions covering all user states
-- Suggestion rotation (2-3 random suggestions every 5-20 seconds)
-- Auto-activation of input for users with limited data (within 3 seconds)
-- Activity logging suggestions (watering, fertilizing, pruning, observations)
-- Auto-submit animation with Enter button positioned inline after text
-  - Canvas text measurement for accurate positioning (15px spacing after last character)
-  - Pulsing animation (1.2s cycle) to draw attention
-  - Press animation (0.5s) before submission
-  - submitInput() function handles submission without keyboard event
-- API endpoints: /api/chat, /api/gardens, /api/plants, /api/activities
-- Session persistence (localStorage conversation_session_id)
-- Conversation history (last 20 messages in system prompt)
-- User context fetching (gardens, plants, activities for each chat request)
-- Message formatting with emphasis on key words
-- Glassmorphism design for chat responses (rgba backgrounds, backdrop blur)
-- Mobile UI (Expo Router): Login, signup, gardens, plants, activities tabs
-- Supabase auth integration (email/password)
-
-Implemented but incomplete:
-- Mobile UI is functional but not primary focus (conversational UI is primary)
-- Plant photos table exists but no upload UI implemented
-- Observations table exists but not integrated into chat
-- Care reminders table exists but no reminder system implemented
-- plants_master reference data table exists but not populated
-- No settings UI for bot_personality_settings or notification_preferences
-
-Not yet implemented:
-- Plant identification via photos
-- Weather integration for care suggestions
-- Push notifications for reminders
-- Social features (sharing, community)
-- Export/import data
-- Dark mode
-- Accessibility improvements (screen reader support, keyboard navigation)
-- Error tracking service (Sentry, etc)
-- Analytics (user behavior, conversation patterns)
-- Tests (unit, integration, e2e)
-
-Known technical debt:
-- conversational.html is 3600+ lines (should be modularized)
-- API endpoints duplicate auth logic (should extract to middleware)
-- No rate limiting on API endpoints (vulnerable to abuse)
-- No caching strategy (every chat request fetches full context)
-- Hardcoded Supabase credentials in conversational.html (should use env vars in build)
-- No TypeScript types for API request/response bodies
-- Suggestion pool duplicates watering icon/message (should dedupe)
-- No cleanup of old conversation sessions (table will grow indefinitely)
-- Manual cp command to sync conversational.html between /public and /assets (should automate)
-
-## 11. ACTIVE PROBLEMS & EDGE CASES
-
-Bugs:
-- None currently known
-
-Performance risks:
-- Fetching gardens, plants, activities on every chat request (3 sequential fetches)
-- No limit on conversation_messages table growth (could slow queries over time)
-- Claude API calls are sequential, not streamed (user waits for full response)
-- Suggestion rotation uses setTimeout recursion (could leak memory if not cleaned up)
-- Canvas text measurement on every auto-submit (minimal but measurable overhead)
-
-Security concerns:
-- CORS set to wildcard '*' (should restrict to specific origin in production)
-- No rate limiting on chat endpoint (could abuse Claude API quota)
-- Supabase anon key exposed in client code (acceptable for RLS-protected data, but consider alternatives)
-- No CSRF protection on API endpoints (Vercel functions don't have built-in protection)
-- No input sanitization on user messages before storing in database
-- Repository is public (was made private but caused Vercel deployment auth issues, reverted to public)
-
-Known flaky behavior:
-- Suggestion rotation interval is random (5-20s), so sometimes two sets appear close together
-- Enter button animation sequence is 3.3s total (1.5s pause + 1.8s pulse), can feel slow on fast connections
-- Chat response dismissal works but no visual feedback for where to click
-- Enter button positioning relies on canvas font matching input font (could break with custom fonts)
-
-## 12. HOW TO CONTINUE (REQUIRED)
-
-What to work on next:
-1. Performance optimization: Parallelize context fetching in /api/chat (Promise.all for gardens, plants, activities)
-2. Caching: Add conversation session caching (store user context in session, refresh every 5 minutes)
-3. Modularize conversational.html: Extract suggestion system, auth overlay, chat handling into separate script files
-4. API middleware: Extract auth verification into reusable function
-5. Rate limiting: Add Vercel rate limiting to /api/chat endpoint
-6. Analytics: Track conversation patterns, suggestion clicks, user drop-off points
-
-Exact files to start with:
-- /Users/chris.larsen/Documents/personal/ShrubHub/mobile/api/chat.ts (performance optimization)
-- /Users/chris.larsen/Documents/personal/ShrubHub/mobile/public/conversational.html (modularization)
-
-Commands to run:
-- npm run web: Start local web dev server
-- npm start: Start Expo dev server (for mobile testing)
-- vercel dev: Test API endpoints locally
-- vercel deploy: Deploy to production
-
-Tests to validate progress:
-- Manual testing: Load conversational UI, sign up new user, verify suggestions appear within 3 seconds
-- Manual testing: Send chat message, verify response includes user context (gardens, plants)
-- Manual testing: Click suggestion button, verify auto-submit animation works
-- Manual testing: Wait 5-20 seconds, verify suggestions rotate
-- Performance testing: Check Network tab for parallel vs sequential API calls
-
-What must NOT be changed without explicit discussion:
-- conversational.html must remain vanilla JS (no React conversion)
-- Build command in vercel.json (swapping index.html is critical)
-- Claude model (Haiku) - cost implications of switching to Sonnet/Opus
-- Suggestion rotation timing (5-20s) - carefully tuned for engagement
-- Auto-activation timing (3s) - carefully tuned for new user UX
-- Enter button animation timing (3.3s total) - carefully tuned for visibility and engagement
-- Canvas text measurement for Enter button positioning - only accurate solution for variable fonts
-- submitInput() / handleInput() separation - required for keyboard and auto-submit to work correctly
-- System prompt structure (state detection logic is core to AI personality)
-- Database schema (migrations required, affects all users)
-- API endpoint paths (would break existing clients)
-- Supabase RLS policies (security implications)
-- Repository visibility (must remain public for Vercel deployments without Pro plan)
+# ShrubHub Project Context Document
+
+**Version:** 2025-12-06
+**Last Updated:** Current session
+**Status:** Active Development
+
+---
+
+## 1) PROJECT OVERVIEW
+
+### App Name
+**ShrubHub**
+
+### Description
+ShrubHub is a garden management application that helps users organize and track their gardening activities across multiple locations. Users can create "Sites" (physical locations like their home or a community garden) with geographic boundaries, create "Gardens" within those sites (with their own boundaries), and track individual plants within gardens. The application provides location-based features including GPS location capture, address search with autocomplete, polygon boundary drawing on satellite maps, and automatic detection of nearby gardens.
+
+### Target Users
+- Home gardeners managing backyard or indoor gardens
+- Community garden participants managing plots
+- Users with multiple gardening locations (home, community plots, etc.)
+- Gardeners who want to track plant care, health status, and location data
+
+### Non-Goals / Explicitly Not Being Built
+- Mobile native map implementation (currently web-only for full map features)
+- Advanced polygon editing beyond dragging vertices
+- Point-based locations (future consideration, currently polygon-focused)
+- Real-time collaboration features
+- E-commerce or plant marketplace features
+- Weather API integration (mentioned as future via shared site data)
+
+---
+
+## 2) CORE REQUIREMENTS
+
+### Functional Requirements
+- **Site Management**
+  - Create, read, update, delete sites
+  - Define site location via GPS, address search, or map click
+  - Draw polygon boundaries for sites on satellite imagery
+  - Associate multiple gardens with a single site
+  - View nearby unassigned gardens within ~5km of site
+  - Add existing unassigned gardens to sites
+  - Remove gardens from sites (non-destructive, garden persists)
+
+- **Garden Management**
+  - Create, read, update, delete gardens
+  - Optionally associate gardens with sites
+  - Define garden location and polygon boundaries
+  - When associated with a site, display site boundary on map (translucent green)
+  - Draw garden boundary within or separate from site boundary (blue overlay)
+  - Categorize gardens by type (indoor, outdoor, container, raised bed, in-ground, greenhouse, community plot, mixed)
+  - Auto-zoom to site boundary when site is selected and no garden boundary exists yet
+
+- **Plant Management**
+  - View plant details including care status, health, location
+  - Link plants to gardens
+  - Track health status (healthy, needs attention, sick)
+  - Track watering and acquisition dates
+  - Link to plants_master reference data for species information
+  - Display plant photos
+
+- **Location Features**
+  - GPS-based location capture via browser geolocation API
+  - Google Places Autocomplete for address search with typeahead
+  - Interactive map with satellite imagery
+  - Polygon drawing by clicking points on map
+  - Draggable boundary vertices for adjustment
+  - Clear boundary function
+
+### Non-Functional Requirements
+- **Performance**: Map should load and render polygons efficiently
+- **Security**: User authentication via Supabase Auth, row-level security on database
+- **Data Integrity**: Polygon boundaries stored in valid WKT format, coordinates validated
+- **Usability**: Informative alerts for user actions, loading states for async operations
+- **Cross-Platform**: Web interface must work on desktop and mobile browsers, iOS Chrome location permissions handled
+
+### Explicit Assumptions
+- Users have modern browsers with geolocation support
+- Users grant location permissions when using GPS features
+- Google Maps API is available and configured
+- Site and garden boundaries are stored as POLYGON geometry in WKT format
+- Foreign key relationships in database may not support nested PostgREST queries
+- Distance calculations use simple lat/lng Pythagorean approximation (0.01 degrees ≈ 1km)
+- Boundaries must have at least 3 points to be saved as polygons
+- WKT polygons automatically close by repeating first coordinate
+
+---
+
+## 3) ARCHITECTURE & TECH STACK
+
+### Frontend Framework and Tooling
+- **React Native**: Cross-platform mobile framework
+- **Expo**: Development platform and toolchain
+- **Expo Router**: File-based routing system with dynamic routes (`[id].tsx`)
+- **NativeWind**: Tailwind CSS for React Native (utility-first styling)
+- **Platform-Specific Files**: `.web.tsx` extensions for web-only implementations
+- **TypeScript**: Type safety (interfaces defined inline in components)
+
+### Backend Framework and Tooling
+- **Supabase**: Backend-as-a-Service providing:
+  - PostgreSQL database
+  - PostgREST API (auto-generated REST endpoints)
+  - Row-level security (RLS)
+  - Authentication
+
+### Runtime Environment
+- **Web**: Browser-based (Chrome, Safari, etc.)
+- **Development Server**: Expo development server
+- **Node.js**: For build tooling and scripts
+
+### Data Storage
+- **Database**: PostgreSQL (via Supabase)
+- **Geometry Format**: WKT (Well-Known Text) for polygon boundaries
+  - Format: `POLYGON((lng lat, lng lat, ...))`
+  - Coordinates stored as longitude-latitude pairs
+  - First coordinate repeated at end to close polygon
+- **Image Storage**: URLs stored in database (photo_url fields)
+
+### API Patterns
+- **PostgREST REST API**: Auto-generated from database schema
+- **Separate Queries**: Individual queries for related data instead of nested queries
+  - Reason: Nested PostgREST queries require proper foreign key relationships and fail with 400 errors otherwise
+  - Pattern: Fetch main entity first, then fetch related entities separately using foreign keys
+- **Google Maps JavaScript API**: Browser-based mapping with satellite view
+- **Google Places Autocomplete API**: Address search with typeahead
+
+### Auth Approach
+- **Supabase Auth**: User authentication with auth_user_id
+- **Gardeners Table**: Links auth users to application data via `auth_user_id` field
+- **RLS**: Database-level security (implied, not explicitly configured in conversation)
+
+### Deployment Model
+- **Vercel**: Static site deployment with automatic HTTPS
+- **Domain**: shrubhub.ai
+- **Environment**: Production builds deployed via git push
+
+---
+
+## 4) DIRECTORY / REPO STRUCTURE
+
+### Root Directory
+```
+/Users/chris.larsen/Documents/personal/ShrubHub/mobile/
+```
+
+### Major Subdirectories
+
+```
+mobile/
+├── app/                          # Expo Router pages (file-based routing)
+│   ├── (auth)/                   # Authentication pages
+│   │   └── login.tsx
+│   ├── sites/                    # Site management
+│   │   ├── [id].tsx             # Site detail page (view/edit/delete)
+│   │   └── add.tsx              # Create new site
+│   ├── gardens/                  # Garden management
+│   │   ├── [id]/
+│   │   │   └── edit.tsx         # Edit garden page
+│   │   ├── [id].tsx             # Garden detail page (if exists)
+│   │   └── add.tsx              # Create new garden
+│   └── plants/                   # Plant management
+│       └── [id].tsx             # Plant detail page
+│
+├── components/                   # React components
+│   ├── layout/                   # Layout components
+│   │   ├── Header.tsx
+│   │   └── BottomNav.tsx
+│   ├── ui/                       # Reusable UI components
+│   │   ├── Button.tsx
+│   │   ├── Card.tsx
+│   │   ├── Input.tsx
+│   │   └── Badge.tsx
+│   ├── map/                      # Map-related components
+│   │   ├── GoogleMapWeb.tsx     # Google Maps wrapper for web
+│   │   ├── SiteLocationPicker.web.tsx    # Site location/boundary picker
+│   │   ├── GardenLocationPicker.web.tsx  # Garden location/boundary picker
+│   │   └── AddressPicker.web.tsx         # Address autocomplete
+│   └── [other components]/
+│
+├── lib/                          # Utilities and clients
+│   ├── supabase/
+│   │   └── client.ts            # Supabase client configuration
+│   └── utils.ts                 # Utility functions (e.g., getDaysSince)
+│
+├── assets/                       # Static assets
+│   └── fonts/                   # Custom fonts
+│
+└── [config files]               # package.json, tsconfig.json, etc.
+```
+
+### Additional Working Directories
+- `/Users/chris.larsen/Documents/personal/ShrubHub/frontend/` (mentioned but not actively used in this session)
+- `/Users/chris.larsen/Downloads/` (contains shapefile processing scripts, not part of main app)
+
+### Version Control Notes
+- `.env` files should NOT be committed (contains API keys)
+- `node_modules/` excluded
+- `.expo/` cache directory excluded
+
+---
+
+## 5) DATA MODELS & SCHEMAS
+
+### Entity: gardeners
+**Purpose**: Links authenticated users to application data
+
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | uuid | PRIMARY KEY | Auto-generated |
+| auth_user_id | uuid | FOREIGN KEY → auth.users | Links to Supabase auth |
+| created_at | timestamp | DEFAULT now() | |
+| updated_at | timestamp | | |
+
+### Entity: sites
+**Purpose**: Physical locations where gardens are located
+
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | uuid | PRIMARY KEY | Auto-generated |
+| gardener_id | uuid | FOREIGN KEY → gardeners(id) | Owner of site |
+| name | text | NOT NULL | Display name |
+| description | text | NULLABLE | Optional notes |
+| location_description | text | NULLABLE | Human-readable location |
+| location_lat | numeric | NULLABLE | Latitude |
+| location_lng | numeric | NULLABLE | Longitude |
+| boundary | text | NULLABLE | WKT POLYGON format |
+| created_at | timestamp | DEFAULT now() | |
+| updated_at | timestamp | | |
+
+**Boundary Format**: `POLYGON((lng lat, lng lat, lng lat, lng lat))`
+**Example**: `POLYGON((-122.4194 37.7749, -122.4184 37.7749, -122.4184 37.7739, -122.4194 37.7739, -122.4194 37.7749))`
+
+### Entity: gardens
+**Purpose**: Gardens within sites or standalone
+
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | uuid | PRIMARY KEY | Auto-generated |
+| gardener_id | uuid | FOREIGN KEY → gardeners(id) | Owner of garden |
+| site_id | uuid | FOREIGN KEY → sites(id), NULLABLE | Optional site association |
+| name | text | NOT NULL | Display name |
+| description | text | NULLABLE | Optional notes |
+| location_description | text | NULLABLE | E.g., "Backyard", "South Window" |
+| location_lat | numeric | NULLABLE | Latitude |
+| location_lng | numeric | NULLABLE | Longitude |
+| boundary | text | NULLABLE | WKT POLYGON format |
+| garden_type | text | DEFAULT 'mixed' | See GARDEN_TYPES below |
+| is_primary | boolean | DEFAULT false | Primary garden flag |
+| created_at | timestamp | DEFAULT now() | |
+| updated_at | timestamp | | |
+
+**GARDEN_TYPES**:
+- `indoor` (🏠 Indoor)
+- `outdoor` (🌳 Outdoor)
+- `container` (🪴 Container)
+- `raised_bed` (📦 Raised Bed)
+- `in_ground` (🌱 In Ground)
+- `greenhouse` (🏡 Greenhouse)
+- `community_plot` (👥 Community Plot)
+- `mixed` (🌿 Mixed)
+
+### Entity: plants
+**Purpose**: Individual plants within gardens
+
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | uuid | PRIMARY KEY | Auto-generated |
+| garden_id | uuid | FOREIGN KEY → gardens(id) | Parent garden |
+| plants_master_id | uuid | FOREIGN KEY → plants_master(id), NULLABLE | Species reference |
+| custom_name | text | NULLABLE | User's nickname for plant |
+| health_status | text | DEFAULT 'healthy' | healthy, needs_attention, sick |
+| location_in_garden | text | NULLABLE | E.g., "Northwest corner" |
+| last_watered | date | NULLABLE | Most recent watering |
+| acquired_date | date | NULLABLE | When plant was acquired |
+| acquisition_notes | text | NULLABLE | Notes about acquisition |
+| photo_url | text | NULLABLE | URL to plant photo |
+| created_at | timestamp | DEFAULT now() | |
+| updated_at | timestamp | | |
+
+### Entity: plants_master
+**Purpose**: Reference data for plant species
+
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | uuid | PRIMARY KEY | Auto-generated |
+| common_names | text[] | NULLABLE | Array of common names |
+| scientific_name | text | NULLABLE | Binomial nomenclature |
+| sunlight_min | numeric | NULLABLE | Min hours of sunlight |
+| sunlight_max | numeric | NULLABLE | Max hours of sunlight |
+| hardiness_zone_min | text | NULLABLE | USDA hardiness zone min |
+| hardiness_zone_max | text | NULLABLE | USDA hardiness zone max |
+
+### Relationships
+```
+gardeners (1) ──< (many) sites
+gardeners (1) ──< (many) gardens
+sites (1) ──< (many) gardens
+gardens (1) ──< (many) plants
+plants_master (1) ──< (many) plants
+```
+
+### Validation & Constraints
+- Polygon boundaries must have at least 3 points to be stored
+- Boundary coordinates are stored as longitude-latitude pairs (WKT standard)
+- WKT polygons must be closed (first point repeated at end)
+- Site and garden boundaries are optional (can be NULL)
+- Gardens can exist without a site (site_id NULL)
+- Plants can exist without plants_master reference (custom plants)
+
+---
+
+## 6) ENVIRONMENT CONFIGURATION
+
+### Required Environment Variables
+
+| Variable | Used By | When | Purpose |
+|----------|---------|------|---------|
+| EXPO_PUBLIC_GOOGLE_MAPS_API_KEY | Frontend | Build-time & Runtime | Google Maps JavaScript API and Places API |
+| Supabase URL | Frontend | Runtime | Supabase project endpoint |
+| Supabase Anon Key | Frontend | Runtime | Public API key for Supabase |
+
+**Note**: Supabase configuration is in `/lib/supabase/client.ts` but specific env var names not shown in conversation.
+
+### Configuration Layer Usage
+- **Frontend Build-Time**: Variables prefixed with `EXPO_PUBLIC_` are embedded in build
+- **Frontend Runtime**: Accessed via `process.env.EXPO_PUBLIC_*` in browser
+- **Backend Runtime**: N/A (Supabase handles backend)
+
+### Secret Management
+- Secrets stored in `.env` file (NOT committed to git)
+- Production secrets configured in Vercel environment variables
+- Google Maps API key should be restricted by domain/IP in Google Cloud Console
+- Supabase anon key is safe to expose (protected by RLS)
+
+---
+
+## 7) KEY DESIGN DECISIONS & RATIONALE
+
+### 1. WKT Format for Polygon Storage
+**Decision**: Store polygon boundaries as WKT text strings in format `POLYGON((lng lat, lng lat, ...))`
+
+**Rationale**:
+- Standard geospatial format supported by PostgreSQL/PostGIS
+- Easy to parse and convert to/from JavaScript objects
+- Human-readable in database queries
+- Coordinates in longitude-latitude order (WKT standard)
+
+**Tradeoffs**:
+- Manual parsing required (not using PostGIS geometry type directly)
+- Must manually close polygons (repeat first coordinate)
+- Could use PostGIS geometry column instead, but WKT is simpler for initial implementation
+
+### 2. Separate Database Queries Instead of Nested PostgREST Queries
+**Decision**: Fetch related entities with separate queries instead of using PostgREST nested query syntax
+
+**Example**:
+```typescript
+// AVOID - This fails with 400 Bad Request
+const { data } = await supabase
+  .from('plants')
+  .select('*, plants_master(*), gardens(*)')
+  .eq('id', id)
+
+// USE - Separate queries
+const { data: plant } = await supabase.from('plants').select('*').eq('id', id)
+const { data: master } = await supabase.from('plants_master').select('*').eq('id', plant.plants_master_id)
+const { data: garden } = await supabase.from('gardens').select('*').eq('id', plant.garden_id)
+```
+
+**Rationale**:
+- PostgREST nested queries require properly configured foreign key relationships in database
+- Encountered 400 Bad Request errors when foreign keys weren't set up correctly
+- Separate queries are more resilient and explicit
+- Minor performance impact acceptable for current scale
+
+**Tradeoffs**:
+- More code and multiple network requests
+- Slightly higher latency
+- But: More reliable and debuggable
+
+### 3. Platform-Specific Files for Web (.web.tsx)
+**Decision**: Use `.web.tsx` extensions for web-specific implementations of map components
+
+**Rationale**:
+- React Native doesn't have native equivalent to Google Maps JavaScript API
+- Web implementation uses browser-specific APIs (HTML input, Google Maps SDK)
+- Mobile implementation would need different approach (react-native-maps)
+- Expo's platform-specific extensions keep code organized
+
+**Tradeoffs**:
+- Duplicate component names (GardenLocationPicker vs GardenLocationPicker.web)
+- Mobile version needs separate implementation
+- But: Clean separation of concerns
+
+### 4. Visual Distinction: Blue for Garden, Green for Site
+**Decision**:
+- Site boundaries: Green (#228B1B), opacity 0.15, non-interactive
+- Garden boundaries: Blue (#2563EB), opacity 0.35, draggable markers
+
+**Rationale**:
+- Clear visual hierarchy (site is context, garden is focus)
+- Site boundary less opaque to not obscure satellite imagery
+- Garden boundary more prominent as it's what user is editing
+- Color-blind friendly color combination
+
+**Tradeoffs**:
+- Fixed colors may not suit all preferences
+- Could add theme customization later
+
+### 5. Simple Distance Calculation for Nearby Gardens
+**Decision**: Use Pythagorean theorem on lat/lng coordinates with approximation 0.01 degrees ≈ 1km
+
+```typescript
+const latDiff = Math.abs(garden.location_lat - site.location_lat)
+const lngDiff = Math.abs(garden.location_lng - site.location_lng)
+const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff)
+const isNearby = distance < 0.05 // ~5km
+```
+
+**Rationale**:
+- Simple and fast for initial implementation
+- Accurate enough for "nearby" detection within ~5km
+- Avoids need for complex geospatial libraries or PostGIS functions
+
+**Tradeoffs**:
+- Not accurate for large distances or high latitudes
+- Doesn't account for Earth's curvature
+- Could use Haversine formula or PostGIS ST_Distance for accuracy
+- Acceptable for current use case (local area detection)
+
+### 6. Boundary Dragging UX
+**Decision**: All boundary vertices are draggable circles, click map to add new vertices
+
+**Rationale**:
+- Intuitive interaction model (drag to adjust, click to add)
+- Visible markers make vertices easy to find and modify
+- "Finish Drawing" button provides clear completion action
+- "Clear Boundary" allows starting over
+
+**Tradeoffs**:
+- No vertex deletion (must clear and redraw)
+- No edge insertion (must click in sequence)
+- Could add advanced editing features later
+
+### 7. Auto-Zoom to Site Boundary
+**Decision**: When a site is selected for a new garden and site has a boundary, automatically calculate center and zoom to fit site boundary
+
+**Rationale**:
+- Reduces user friction (don't have to search for site on map)
+- Provides immediate context for where to draw garden boundary
+- Only applies when garden has no existing location (respects user's previous choices)
+
+**Tradeoffs**:
+- Zoom level fixed at 17 (could calculate optimal zoom to fit bounds)
+- Center calculated as simple average of coordinates (could use proper bounds fitting)
+
+---
+
+## 8) CURRENT STATE
+
+### Fully Implemented
+
+**Sites**
+- ✅ Create site with name, description, location
+- ✅ Address search with Google Places Autocomplete
+- ✅ GPS location capture via browser geolocation
+- ✅ Draw site boundary on satellite map
+- ✅ View site details with associated gardens
+- ✅ Edit site (inline editing on detail page)
+- ✅ Delete site
+- ✅ View nearby unassigned gardens (within ~5km)
+- ✅ Add existing gardens to site
+- ✅ Remove gardens from site (non-destructive)
+- ✅ Create new garden from site detail page
+
+**Gardens**
+- ✅ Create garden with name, description, location, type
+- ✅ Site selection during garden creation
+- ✅ GPS location capture
+- ✅ Draw garden boundary on map
+- ✅ Display site boundary (green) when garden associated with site
+- ✅ Garden boundary overlay (blue) on top of site boundary
+- ✅ Auto-zoom to site boundary when site selected
+- ✅ Edit garden with all features above
+- ✅ Save/load boundaries in WKT format
+- ✅ Eight garden type categories with emoji icons
+- ✅ Draggable boundary vertices
+
+**Plants**
+- ✅ View plant detail page
+- ✅ Display plant photo or emoji placeholder
+- ✅ Show health status with color-coded badges
+- ✅ Display care status (days since watering, age)
+- ✅ Link to garden and species (plants_master)
+- ✅ Show plant information (sunlight, hardiness zone)
+- ✅ Navigate from plant card to detail page
+
+**UI/UX**
+- ✅ Header with back navigation
+- ✅ Bottom navigation
+- ✅ Card-based layout
+- ✅ Button variants (primary, outline)
+- ✅ Badge variants for health status (healthy, attention, urgent, neutral)
+- ✅ Loading states
+- ✅ Alert dialogs for confirmations
+- ✅ Responsive ScrollView layouts
+
+**Map Features (Web Only)**
+- ✅ Google Maps satellite view
+- ✅ Polygon drawing
+- ✅ Marker dragging
+- ✅ Map click to add vertices
+- ✅ Dual boundary display (site + garden)
+- ✅ Address autocomplete integration
+
+### Partially Implemented
+
+**Plants**
+- ⚠️ "Water Now" button present but non-functional (line 254 in `/app/plants/[id].tsx`)
+- ⚠️ Plant creation flow not visible in conversation (may exist elsewhere)
+
+**Mobile Maps**
+- ⚠️ Map components only implemented for web (.web.tsx)
+- ⚠️ Mobile native implementation not started
+- ⚠️ Tip message shown: "For full satellite imagery and polygon drawing, use the mobile app. Web maps are coming soon!" (inverted - web has it, mobile doesn't)
+
+**Error Handling**
+- ⚠️ Basic try-catch with console.error and window.alert
+- ⚠️ No global error boundary
+- ⚠️ No toast notification system
+
+### Planned But Not Started
+
+**Sites**
+- 🔲 Point-based locations (mentioned as future consideration)
+- 🔲 Weather/environmental data sharing across site
+
+**Gardens**
+- 🔲 Advanced boundary editing (delete vertices, insert on edges)
+- 🔲 Boundary validation (check if within site boundary)
+
+**Plants**
+- 🔲 Water tracking functionality
+- 🔲 Plant creation/edit flows
+- 🔲 Care schedule/reminders
+- 🔲 Plant photo upload
+
+**General**
+- 🔲 Mobile native map implementation
+- 🔲 Offline support
+- 🔲 Data export
+- 🔲 Sharing/collaboration features
+
+---
+
+## 9) KNOWN ISSUES / RISKS / OPEN QUESTIONS
+
+### Technical Risks
+
+**PostgREST Foreign Key Dependency**
+- **Issue**: Nested queries fail with 400 Bad Request if foreign keys not properly configured
+- **Current Mitigation**: Use separate queries for related data
+- **Long-term Risk**: If database schema changes without updating queries, silent failures possible
+- **Recommendation**: Add database migration tracking and test foreign key relationships
+
+**Google Maps API Costs**
+- **Issue**: Maps JavaScript API and Places API have usage quotas and costs
+- **Current Mitigation**: Unknown (API key restrictions not mentioned)
+- **Risk**: Unexpected costs if traffic scales
+- **Recommendation**: Set up billing alerts and usage quotas in Google Cloud Console
+
+**WKT Parsing Robustness**
+- **Issue**: Manual regex parsing of WKT strings could break with unexpected formats
+- **Current Mitigation**: Specific regex pattern `\(\((.*?)\)\)` for POLYGON
+- **Risk**: If database stores different geometry types (POINT, MULTIPOLYGON), parsing will fail
+- **Recommendation**: Add validation and error handling for boundary parsing
+
+**Simple Distance Calculation Accuracy**
+- **Issue**: Pythagorean distance on lat/lng coordinates inaccurate at scale or high latitudes
+- **Current Mitigation**: Only used for "nearby" detection within ~5km
+- **Risk**: False positives/negatives for gardens near 5km threshold
+- **Recommendation**: Consider Haversine formula or PostGIS ST_DWithin for production
+
+### Product Uncertainties
+
+**Mobile vs Web Priority**
+- **Observation**: Code comments suggest mobile is primary ("use mobile app for full features") but web has all map features, mobile has none
+- **Question**: What is true platform priority? Should mobile native maps be next focus?
+
+**Boundary Validation**
+- **Question**: Should gardens be required to fit within site boundaries?
+- **Current State**: No validation, gardens can be drawn anywhere
+- **Decision Needed**: Add validation or keep flexible?
+
+**Plant Ownership Model**
+- **Question**: Can plants belong to gardens in different sites? Can they move between gardens?
+- **Current State**: Plants have fixed garden_id, no transfer mechanism
+- **Decision Needed**: Support plant transfers or keep static?
+
+### Areas Needing Future Clarification
+
+**Authentication & Authorization**
+- **Unclear**: Is multi-user sharing planned? Can multiple gardeners co-own a site/garden?
+- **Current State**: Single gardener_id owner per entity
+- **Impact**: Database schema would need junction tables for multi-owner support
+
+**Data Model for Site-less Gardens**
+- **Unclear**: Should standalone gardens (no site_id) have different UI/features?
+- **Current State**: Same UI for both, site selection is optional
+- **Decision Needed**: Different workflows or keep unified?
+
+**Boundary Complexity Limits**
+- **Question**: Is there a max number of vertices for boundaries? Performance implications?
+- **Current State**: No limits enforced
+- **Risk**: Very complex polygons could impact map rendering performance
+
+**Hardiness Zones Data Source**
+- **Observation**: plants_master has hardiness_zone_min/max fields (text type)
+- **Question**: Where does this data come from? Is it editable by users or reference data?
+- **Current State**: Reference data table, not clear if user-editable
+
+---
+
+## 10) HOW TO CONTINUE WORK
+
+### For a New Assistant Taking Over
+
+**Immediate Context Files to Inspect**
+
+1. **Start Here**: Read these files to understand current implementation
+   ```
+   /Users/chris.larsen/Documents/personal/ShrubHub/mobile/app/gardens/add.tsx
+   /Users/chris.larsen/Documents/personal/ShrubHub/mobile/app/gardens/[id]/edit.tsx
+   /Users/chris.larsen/Documents/personal/ShrubHub/mobile/components/map/GardenLocationPicker.web.tsx
+   /Users/chris.larsen/Documents/personal/ShrubHub/mobile/components/map/GoogleMapWeb.tsx
+   ```
+
+2. **Database Schema**: Understand data model by querying Supabase or reading schema
+   - Tables: gardeners, sites, gardens, plants, plants_master
+   - Focus on WKT boundary fields and foreign key relationships
+
+3. **Environment Setup**: Check for `.env` file with Google Maps API key
+   - If missing, request key setup instructions from user
+   - Verify Supabase connection configuration in `/lib/supabase/client.ts`
+
+### What Files to Modify Next (By Priority)
+
+**High Priority**
+1. **Plant water functionality**: `/app/plants/[id].tsx` line 253-254
+   - "Water Now" button exists but has empty onPress handler
+   - Add database update to set `last_watered = CURRENT_DATE`
+   - Update UI to show updated "days since watering"
+
+2. **Mobile map implementation**: Create native versions without `.web.tsx` extension
+   - Research react-native-maps or similar library
+   - Implement polygon drawing on mobile
+   - May need different UX pattern (mobile-optimized)
+
+3. **Boundary validation**: Add check in GardenLocationPicker
+   - When site boundary exists, validate garden boundary points are within site
+   - Use point-in-polygon algorithm or PostGIS ST_Within
+   - Show visual feedback or warning if invalid
+
+**Medium Priority**
+4. **Error boundary**: Add global error catching
+   - Wrap app in React error boundary component
+   - Replace window.alert with toast notification system
+   - Add Sentry or similar error tracking
+
+5. **Plant CRUD**: Create plant creation and editing flows
+   - Follow pattern established by gardens (add.tsx, edit.tsx)
+   - Include photo upload capability
+   - Link to garden via garden_id
+
+**Low Priority**
+6. **Optimize distance calculation**: Replace simple Pythagorean with Haversine
+   - More accurate for "nearby gardens" detection
+   - Or use PostGIS ST_DWithin if available
+
+7. **Advanced boundary editing**: Add vertex deletion and edge insertion
+   - Click vertex to delete
+   - Click edge midpoint to insert new vertex
+   - Requires more complex state management in map components
+
+### What NOT to Change Without Reconsideration
+
+**Do Not Modify Without Discussion**
+
+1. **WKT Format**: Do not change from `POLYGON((lng lat, ...))` format
+   - Database may have existing boundaries in this format
+   - Coordinate order (lng, lat) is WKT standard
+   - Changing would require data migration
+
+2. **Separate Query Pattern**: Do not switch back to nested PostgREST queries
+   - This was specifically chosen to avoid 400 errors
+   - Only change if foreign keys are verified in database schema
+   - Test thoroughly with foreign key validation
+
+3. **Color Scheme for Boundaries**: Do not change blue/green without user request
+   - Site = green (#228B1B), Garden = blue (#2563EB)
+   - Opacity levels carefully chosen (site 0.15, garden 0.35)
+   - Accessibility-tested color combination
+
+4. **Platform-Specific File Structure**: Do not consolidate .web.tsx files
+   - Expo relies on this convention for platform detection
+   - Web and mobile implementations are fundamentally different
+   - Merging would require runtime platform checks (less clean)
+
+5. **Database Schema**: Do not add/modify columns without migration plan
+   - Existing data in production database (shrubhub.ai deployed)
+   - Schema changes need careful migration strategy
+   - Check with user about database state before schema changes
+
+### Development Workflow
+
+**Running the App Locally**
+```bash
+cd /Users/chris.larsen/Documents/personal/ShrubHub/mobile
+npx expo start --clear  # Start dev server
+# Press 'w' for web browser
+# Scan QR for mobile (if Expo Go app installed)
+```
+
+**Deployment to Production**
+- Deployment via Vercel (automatic on git push)
+- Production URL: https://www.shrubhub.ai
+- Verify changes locally before deploying
+
+**Testing Changes**
+1. Test on web browser first (easiest to debug)
+2. Verify map interactions work with Google Maps API
+3. Check database writes in Supabase dashboard
+4. Test location permissions in browser (especially iOS Chrome)
+5. Verify WKT polygon format in database after boundary save
+
+### Common Pitfalls to Avoid
+
+**Geography-Related**
+- Don't confuse latitude/longitude order (WKT uses lng/lat)
+- Don't forget to close polygons (repeat first coordinate)
+- Don't use negative array indices when parsing coordinates
+
+**React Native Specific**
+- Don't use web-only APIs in non-.web.tsx files
+- Don't forget `typeof window !== 'undefined'` checks before using browser APIs
+- Don't mix React Native components with HTML elements
+
+**Database Queries**
+- Don't assume nested queries work without testing
+- Don't forget to handle null foreign keys (plants without plants_master_id)
+- Don't use `.single()` without error handling (throws if no rows found)
+
+**State Management**
+- Don't forget to initialize state from loaded data (especially for edit forms)
+- Don't forget to update both state and database on user actions
+- Don't forget to call onLocationChange/onBoundaryChange callbacks in map components
+
+### Questions to Ask User Before Major Changes
+
+1. **Before changing data model**: "I need to modify the database schema to add [feature]. This may require a data migration. Should I proceed?"
+
+2. **Before switching libraries**: "I recommend replacing [current library] with [new library] for [reason]. This would require refactoring [components]. Is this acceptable?"
+
+3. **Before removing features**: "The current implementation of [feature] conflicts with [new requirement]. Should I remove it or find a way to support both?"
+
+4. **Before major UX changes**: "I propose changing [interaction pattern] to [new pattern] because [reason]. Can you review this approach before I implement?"
+
+---
+
+## APPENDIX: Code Patterns Reference
+
+### WKT Conversion Functions
+
+**Coordinates to WKT**
+```typescript
+interface Coordinate {
+  latitude: number
+  longitude: number
+}
+
+const convertBoundaryToWKT = (coords: Coordinate[]): string | null => {
+  if (coords.length < 3) return null
+  const coordStrings = coords.map(c => `${c.longitude} ${c.latitude}`)
+  coordStrings.push(coordStrings[0]) // Close polygon
+  return `POLYGON((${coordStrings.join(', ')}))`
+}
+```
+
+**WKT to Coordinates**
+```typescript
+const parseBoundaryFromWKT = (wkt: string): Coordinate[] => {
+  const coordString = wkt.match(/\(\((.*?)\)\)/)?.[1]
+  if (!coordString) return []
+
+  const coords = coordString.split(',').map((pair: string) => {
+    const [lng, lat] = pair.trim().split(' ').map(Number)
+    return { latitude: lat, longitude: lng }
+  })
+
+  // Remove last coordinate if duplicate of first (closing point)
+  if (coords.length > 1 &&
+      coords[0].latitude === coords[coords.length - 1].latitude &&
+      coords[0].longitude === coords[coords.length - 1].longitude) {
+    coords.pop()
+  }
+
+  return coords
+}
+```
+
+### Separate Query Pattern for Related Data
+
+```typescript
+// Load main entity
+const { data: garden } = await supabase
+  .from('gardens')
+  .select('*')
+  .eq('id', gardenId)
+  .single()
+
+// Load related entities separately
+let gardenWithRelations = { ...garden }
+
+if (garden.site_id) {
+  const { data: site } = await supabase
+    .from('sites')
+    .select('name, boundary')
+    .eq('id', garden.site_id)
+    .single()
+
+  if (site) {
+    gardenWithRelations.site = site
+  }
+}
+
+return gardenWithRelations
+```
+
+### Nearby Gardens Distance Calculation
+
+```typescript
+const nearby = allGardens.filter((garden) => {
+  if (!garden.location_lat || !garden.location_lng) return false
+
+  const latDiff = Math.abs(garden.location_lat - site.location_lat)
+  const lngDiff = Math.abs(garden.location_lng - site.location_lng)
+  const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff)
+
+  return distance < 0.05 // ~5km threshold
+})
+```
+
+### Map Component Usage Pattern
+
+```typescript
+<GardenLocationPicker
+  siteId={selectedSiteId}              // Optional: displays site boundary
+  onLocationChange={(lat, lng) => {
+    setLocationLat(lat)
+    setLocationLng(lng)
+  }}
+  onBoundaryChange={(coords) => {
+    setBoundary(coords)
+  }}
+  initialLocation={                     // Optional: for edit mode
+    locationLat && locationLng
+      ? { latitude: locationLat, longitude: locationLng }
+      : undefined
+  }
+  initialBoundary={initialBoundary}     // Optional: for edit mode
+/>
+```
+
+---
+
+**END OF DOCUMENT**
+
+This document represents the complete state of the ShrubHub project as of 2025-12-06. Any assistant should be able to continue development using this as the sole source of truth.

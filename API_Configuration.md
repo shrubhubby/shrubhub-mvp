@@ -1,0 +1,9 @@
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://pfkxhoqlfflgjlovgenc.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBma3hob3FsZmZsZ2psb3ZnZW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5OTUxNDMsImV4cCI6MjA4MDU3MTE0M30.KlTtM5A9fB67RxXllMEG9aGgGwdX5drnwAKsyfsaER8
+
+# Plant.id API
+PLANT_ID_API_KEY=your-plant-id-api-key
+
+# Weather API
+OPENWEATHER_API_KEY=your-openweather-api-key

@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShrubHub - Grow with the Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #F2F4F4;
+    }
+    
+    ::placeholder {
+      color: #333333;
+      opacity: 0.5;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #F2F4F4;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #66CDE1;
+      border-radius: 3px;
+    }
+    
+    button {
+      transition: all 0.2s ease;
+    }
+    
+    button:hover {
+      filter: brightness(1.05);
+    }
+    
+    button:active {
+      transform: scale(0.98);
+    }
+    
+    @keyframes wave {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-fade-in {
+      animation: fadeIn 0.3s ease forwards;
+    }
+    
+    .animate-slide-up {
+      animation: slideUp 0.4s ease forwards;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    
+    // ============================================
+    // SHRUBHUB - "Grow with the Flow"
+    // AI-Forward Gardening Companion
+    // ============================================
+    
+    // Brand Colors from Official Guidelines v1.1
+    const colors = {
+      deepForestGreen: '#228B1B',
+      lightLeafGreen: '#A6D856',
+      deepLeafGreen: '#4BA83E',
+      oceanBlueDeep: '#0A6F9C',
+      oceanBlueMid: '#2DA1C4',
+      oceanBlueLight: '#66CDE1',
+      oceanMist: '#C5EEF4',
+      coalGrey: '#333333',
+      softGrey: '#F2F4F4',
+      white: '#FFFFFF',
+      healthy: '#4BA83E',
+      needsAttention: '#E8A64F',
+      urgent: '#E85A4F',
+    };
+    
+    // Activity types from database schema
+    const ACTIVITIES = [
+      { id: 'watering', icon: '💧', label: 'Water', verb: 'watered', color: colors.oceanBlueMid },
+      { id: 'fertilizing', icon: '🧪', label: 'Fertilize', verb: 'fertilized', color: colors.deepLeafGreen },
+      { id: 'pruning', icon: '✂️', label: 'Prune', verb: 'pruned', color: colors.deepForestGreen },
+      { id: 'repotting', icon: '🪴', label: 'Repot', verb: 'repotted', color: colors.oceanBlueDeep },
+      { id: 'transplanting', icon: '🌱', label: 'Transplant', verb: 'transplanted', color: colors.lightLeafGreen },
+      { id: 'harvesting', icon: '🍅', label: 'Harvest', verb: 'harvested', color: colors.urgent },
+      { id: 'treating_pests', icon: '🐛', label: 'Treat Pests', verb: 'treated for pests', color: colors.needsAttention },
+      { id: 'treating_disease', icon: '🩹', label: 'Treat Disease', verb: 'treated for disease', color: colors.needsAttention },
+      { id: 'staking', icon: '🥢', label: 'Stake', verb: 'staked', color: colors.coalGrey },
+      { id: 'mulching', icon: '🍂', label: 'Mulch', verb: 'mulched', color: colors.needsAttention },
+      { id: 'soil_amendment', icon: '🌍', label: 'Amend Soil', verb: 'amended soil for', color: colors.oceanBlueDeep },
+      { id: 'deadheading', icon: '🌸', label: 'Deadhead', verb: 'deadheaded', color: colors.lightLeafGreen },
+      { id: 'thinning', icon: '🌿', label: 'Thin', verb: 'thinned', color: colors.deepLeafGreen },
+      { id: 'germination', icon: '🌰', label: 'Log Germination', verb: 'logged germination for', color: colors.deepForestGreen },
+      { id: 'observation', icon: '👁️', label: 'Observe', verb: 'observed', color: colors.oceanBlueMid },
+      { id: 'photo', icon: '📸', label: 'Photo', verb: 'photographed', color: colors.oceanBlueDeep },
+    ];
+    
+    // Mock plant data
+    const MOCK_PLANTS = [
+      { id: '1', customName: 'Monty', commonName: 'Monstera', scientificName: 'Monstera deliciosa', status: 'vegetative', healthStatus: 'healthy', lastWatered: 3, nextWater: 4, location: 'Living room window', acquisitionSource: 'gift' },
+      { id: '2', customName: 'Basil Boss', commonName: 'Sweet Basil', scientificName: 'Ocimum basilicum', status: 'vegetative', healthStatus: 'needs_attention', lastWatered: 5, nextWater: 0, location: 'Kitchen windowsill', acquisitionSource: 'seed' },
+      { id: '3', customName: 'Frank', commonName: 'Boston Fern', scientificName: 'Nephrolepis exaltata', status: 'alive', healthStatus: 'healthy', lastWatered: 1, nextWater: 2, location: 'Bathroom shelf', acquisitionSource: 'mature_purchased' },
+      { id: '4', customName: 'Big Bertha', commonName: 'Tomato', scientificName: 'Solanum lycopersicum', status: 'fruiting', healthStatus: 'healthy', lastWatered: 1, nextWater: 1, location: 'Back porch raised bed', acquisitionSource: 'seedling_purchased' },
+      { id: '5', customName: 'Rosie', commonName: 'Rose', scientificName: 'Rosa', status: 'flowering', healthStatus: 'needs_attention', lastWatered: 4, nextWater: 0, location: 'Front garden', acquisitionSource: 'mature_purchased' },
+      { id: '6', customName: null, commonName: 'Aloe Vera', scientificName: 'Aloe vera', status: 'alive', healthStatus: 'healthy', lastWatered: 14, nextWater: 7, location: 'Office desk', acquisitionSource: 'propagation' },
+    ];
+    
+    // Initial chat messages
+    const INITIAL_MESSAGES = [
+      { id: '1', role: 'assistant', content: "Good morning! 🌿 Rosie and Basil Boss are thirsty today. Want me to remind you, or shall we log watering now?", timestamp: new Date(Date.now() - 3600000) },
+    ];
+    
+    // AI Intent Detection
+    function detectIntent(text) {
+      const lowerText = text.toLowerCase();
+      const intents = [];
+      
+      const activityPatterns = [
+        { pattern: /water|watered|hydrat|gave.*water|drinking/i, activity: 'watering', confidence: 0.92 },
+        { pattern: /fertil|feed|fed|nutrient|compost/i, activity: 'fertilizing', confidence: 0.88 },
+        { pattern: /prune|pruned|cut.*back|trim|trimmed|snip/i, activity: 'pruning', confidence: 0.87 },
+        { pattern: /harvest|picked|collected|gathered|pluck/i, activity: 'harvesting', confidence: 0.91 },
+        { pattern: /repot|new.*pot|bigger.*pot|container/i, activity: 'repotting', confidence: 0.85 },
+        { pattern: /transplant|moved|moving|relocat/i, activity: 'transplanting', confidence: 0.84 },
+        { pattern: /pest|bug|aphid|spider.*mite|insect/i, activity: 'treating_pests', confidence: 0.89 },
+        { pattern: /disease|sick|fungus|mold|rot/i, activity: 'treating_disease', confidence: 0.86 },
+        { pattern: /photo|picture|pic|snap|capture/i, activity: 'photo', confidence: 0.90 },
+      ];
+      
+      activityPatterns.forEach(({ pattern, activity, confidence }) => {
+        if (pattern.test(lowerText)) {
+          intents.push({ type: 'activity', activity, confidence });
+        }
+      });
+      
+      if (/notice|saw|looks|looking|seems|appears|spotted|see|found|check/i.test(lowerText)) {
+        intents.push({ type: 'observation', confidence: 0.75 });
+      }
+      
+      MOCK_PLANTS.forEach(plant => {
+        const name = plant.customName || plant.commonName;
+        if (lowerText.includes(name.toLowerCase())) {
+          intents.push({ type: 'plant_mention', plant, confidence: 0.95 });
+        }
+        if (lowerText.includes(plant.commonName.toLowerCase())) {
+          intents.push({ type: 'plant_mention', plant, confidence: 0.90 });
+        }
+      });
+      
+      if (/when.*water|should.*water|need.*water|water.*schedule/i.test(lowerText)) {
+        intents.push({ type: 'query', query: 'watering_schedule', confidence: 0.92 });
+      }
+      if (/how.*is|status|doing|health|okay|alright/i.test(lowerText)) {
+        intents.push({ type: 'query', query: 'plant_status', confidence: 0.87 });
+      }
+      if (/what.*wrong|problem|issue|help|dying|yellow|brown|droopy|wilting/i.test(lowerText)) {
+        intents.push({ type: 'query', query: 'troubleshoot', confidence: 0.90 });
+      }
+      
+      if (/add.*plant|new.*plant|got.*plant|bought.*plant|introduce/i.test(lowerText)) {
+        intents.push({ type: 'action', action: 'add_plant', confidence: 0.91 });
+      }
+      if (/show.*garden|my.*plants|all.*plants|overview/i.test(lowerText)) {
+        intents.push({ type: 'action', action: 'show_garden', confidence: 0.85 });
+      }
+      if (/remind|reminder|schedule|set.*alert/i.test(lowerText)) {
+        intents.push({ type: 'action', action: 'set_reminder', confidence: 0.86 });
+      }
+      
+      return intents;
+    }
+    
+    // Generate suggestions
+    function generateSuggestions(text) {
+      if (!text || text.length < 2) return [];
+      
+      const intents = detectIntent(text);
+      const suggestions = [];
+      const addedIds = new Set();
+      
+      const plantMentions = intents.filter(i => i.type === 'plant_mention');
+      const activityIntents = intents.filter(i => i.type === 'activity');
+      const queryIntents = intents.filter(i => i.type === 'query');
+      const actionIntents = intents.filter(i => i.type === 'action');
+      
+      activityIntents.forEach(intent => {
+        const activity = ACTIVITIES.find(a => a.id === intent.activity);
+        if (!activity) return;
+        
+        if (plantMentions.length > 0) {
+          plantMentions.forEach(pm => {
+            const id = `${activity.id}-${pm.plant.id}`;
+            if (!addedIds.has(id)) {
+              addedIds.add(id);
+              const plantName = pm.plant.customName || pm.plant.commonName;
+              suggestions.push({
+                id,
+                icon: activity.icon,
+                label: `Log: ${activity.verb} ${plantName}`,
+                sublabel: `Record ${activity.label.toLowerCase()} activity`,
+                confidence: (intent.confidence + pm.confidence) / 2,
+                action: { type: 'log_activity', activity: activity.id, plant: pm.plant },
+              });
+            }
+          });
+        } else {
+          const id = `${activity.id}-select`;
+          if (!addedIds.has(id)) {
+            addedIds.add(id);
+            suggestions.push({
+              id,
+              icon: activity.icon,
+              label: `Log ${activity.label.toLowerCase()}...`,
+              sublabel: 'Select which plant',
+              confidence: intent.confidence,
+              action: { type: 'select_plant_for_activity', activity: activity.id },
+            });
+          }
+        }
+      });
+      
+      queryIntents.forEach(intent => {
+        if (intent.query === 'watering_schedule') {
+          if (plantMentions.length > 0) {
+            plantMentions.forEach(pm => {
+              const plantName = pm.plant.customName || pm.plant.commonName;
+              suggestions.push({
+                id: `schedule-${pm.plant.id}`,
+                icon: '📅',
+                label: `${plantName}'s watering schedule`,
+                sublabel: `Next water in ${pm.plant.nextWater} days`,
+                confidence: intent.confidence,
+                action: { type: 'show_schedule', plant: pm.plant },
+              });
+            });
+          } else {
+            suggestions.push({
+              id: 'schedule-all',
+              icon: '📅',
+              label: 'View all watering schedules',
+              sublabel: `${MOCK_PLANTS.filter(p => p.nextWater <= 1).length} plants need water soon`,
+              confidence: intent.confidence,
+              action: { type: 'show_all_schedules' },
+            });
+          }
+        }
+        
+        if (intent.query === 'plant_status' && plantMentions.length > 0) {
+          plantMentions.forEach(pm => {
+            const plantName = pm.plant.customName || pm.plant.commonName;
+            suggestions.push({
+              id: `status-${pm.plant.id}`,
+              icon: pm.plant.healthStatus === 'healthy' ? '✅' : '⚠️',
+              label: `How is ${plantName} doing?`,
+              sublabel: `Status: ${pm.plant.healthStatus.replace('_', ' ')}`,
+              confidence: intent.confidence,
+              action: { type: 'show_plant_detail', plant: pm.plant },
+            });
+          });
+        }
+        
+        if (intent.query === 'troubleshoot') {
+          if (plantMentions.length > 0) {
+            plantMentions.forEach(pm => {
+              const plantName = pm.plant.customName || pm.plant.commonName;
+              suggestions.push({
+                id: `troubleshoot-${pm.plant.id}`,
+                icon: '🩺',
+                label: `Diagnose ${plantName}'s issue`,
+                sublabel: 'AI-powered plant health analysis',
+                confidence: intent.confidence,
+                action: { type: 'troubleshoot', plant: pm.plant },
+              });
+            });
+          } else {
+            suggestions.push({
+              id: 'troubleshoot-photo',
+              icon: '📸',
+              label: 'Take a photo for diagnosis',
+              sublabel: 'AI will analyze the issue',
+              confidence: intent.confidence,
+              action: { type: 'photo_diagnosis' },
+            });
+          }
+        }
+      });
+      
+      actionIntents.forEach(intent => {
+        if (intent.action === 'add_plant') {
+          suggestions.push({
+            id: 'add-plant',
+            icon: '🌱',
+            label: 'Add a new plant',
+            sublabel: 'Photo identify or manual entry',
+            confidence: intent.confidence,
+            action: { type: 'add_plant' },
+          });
+        }
+        if (intent.action === 'show_garden') {
+          suggestions.push({
+            id: 'show-garden',
+            icon: '🏡',
+            label: 'View my garden',
+            sublabel: `${MOCK_PLANTS.length} plants`,
+            confidence: intent.confidence,
+            action: { type: 'navigate', destination: 'garden' },
+          });
+        }
+      });
+      
+      if (intents.some(i => i.type === 'observation') && plantMentions.length > 0) {
+        plantMentions.forEach(pm => {
+          const plantName = pm.plant.customName || pm.plant.commonName;
+          suggestions.push({
+            id: `observe-${pm.plant.id}`,
+            icon: '📝',
+            label: `Log observation for ${plantName}`,
+            sublabel: 'Record what you noticed',
+            confidence: 0.8,
+            action: { type: 'add_observation', plant: pm.plant },
+          });
+        });
+      }
+      
+      if (suggestions.length === 0 && text.length > 3) {
+        suggestions.push({
+          id: 'ask-ai',
+          icon: '✨',
+          label: `Ask about: "${text.slice(0, 40)}${text.length > 40 ? '...' : ''}"`,
+          sublabel: 'Get AI gardening advice',
+          confidence: 0.6,
+          action: { type: 'ask_ai', query: text },
+        });
+      }
+      
+      return suggestions.sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+    }
+    
+    // ============================================
+    // COMPONENTS
+    // ============================================
+    
+    // Logo SVG
+    const LogoSVG = ({ size = 40 }) => (
+      <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+        <circle cx="50" cy="50" r="48" stroke={colors.oceanBlueMid} strokeWidth="2" fill={colors.oceanMist}/>
+        <path d="M30 70 Q50 30 70 70" stroke={colors.oceanBlueDeep} strokeWidth="3" fill="none"/>
+        <path d="M35 65 Q50 35 65 65" stroke={colors.oceanBlueMid} strokeWidth="2" fill="none"/>
+        <ellipse cx="50" cy="55" rx="8" ry="20" fill={colors.deepLeafGreen}/>
+        <ellipse cx="42" cy="50" rx="6" ry="15" fill={colors.lightLeafGreen} transform="rotate(-20 42 50)"/>
+        <ellipse cx="58" cy="50" rx="6" ry="15" fill={colors.lightLeafGreen} transform="rotate(20 58 50)"/>
+        <rect x="48" y="65" width="4" height="15" fill={colors.deepForestGreen} rx="2"/>
+      </svg>
+    );
+    
+    // Status Badge
+    const StatusBadge = ({ status }) => {
+      const config = {
+        healthy: { bg: colors.healthy, label: 'Healthy' },
+        needs_attention: { bg: colors.needsAttention, label: 'Needs Care' },
+        sick: { bg: colors.urgent, label: 'Sick' },
+        thriving: { bg: colors.deepLeafGreen, label: 'Thriving' },
+      };
+      const { bg, label } = config[status] || config.healthy;
+      
+      return (
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '4px 10px',
+          borderRadius: '12px',
+          backgroundColor: `${bg}20`,
+          color: bg,
+          fontSize: '12px',
+          fontWeight: 500,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: bg }} />
+          {label}
+        </span>
+      );
+    };
+    
+    // Plant Card
+    const PlantCard = ({ plant, onClick, compact = false }) => {
+      const name = plant.customName || plant.commonName;
+      const needsWater = plant.nextWater <= 1;
+      const emoji = plant.status === 'flowering' ? '🌸' : plant.status === 'fruiting' ? '🍅' : '🌿';
+      
+      if (compact) {
+        return (
+          <div
+            onClick={onClick}
+            className="animate-fade-in"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px',
+              backgroundColor: colors.white,
+              borderRadius: '12px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              border: needsWater ? `2px solid ${colors.needsAttention}` : '2px solid transparent',
+            }}
+          >
+            <div style={{
+              width: 48,
+              height: 48,
+              borderRadius: '12px',
+              background: `linear-gradient(135deg, ${colors.lightLeafGreen}40 0%, ${colors.deepLeafGreen}40 100%)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px',
+            }}>
+              {emoji}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, color: colors.coalGrey, fontSize: '15px' }}>{name}</div>
+              <div style={{ fontSize: '13px', color: colors.coalGrey, opacity: 0.7 }}>{plant.location}</div>
+            </div>
+            {needsWater && (
+              <div style={{ 
+                padding: '6px 10px', 
+                borderRadius: '8px', 
+                backgroundColor: `${colors.needsAttention}15`,
+                color: colors.needsAttention,
+                fontSize: '13px',
+                fontWeight: 500,
+              }}>
+                💧 Water today
+              </div>
+            )}
+          </div>
+        );
+      }
+      
+      return (
+        <div
+          onClick={onClick}
+          className="animate-slide-up"
+          style={{
+            backgroundColor: colors.white,
+            borderRadius: '16px',
+            overflow: 'hidden',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            cursor: 'pointer',
+            transition: 'all 0.25s ease',
+          }}
+        >
+          <div style={{
+            height: '120px',
+            background: `linear-gradient(135deg, ${colors.lightLeafGreen}60 0%, ${colors.deepLeafGreen}60 100%)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '48px',
+            position: 'relative',
+          }}>
+            {emoji}
+            {needsWater && (
+              <div style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                backgroundColor: colors.needsAttention,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+              }}>
+                💧
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '14px' }}>
+            <div style={{ fontWeight: 600, color: colors.coalGrey, fontSize: '16px', marginBottom: '4px' }}>{name}</div>
+            <div style={{ fontSize: '13px', color: colors.coalGrey, opacity: 0.6, marginBottom: '8px' }}>{plant.commonName}</div>
+            <StatusBadge status={plant.healthStatus} />
+          </div>
+        </div>
+      );
+    };
+    
+    // Suggestion Pill
+    const SuggestionPill = ({ suggestion, onClick }) => (
+      <button
+        onClick={() => onClick(suggestion)}
+        className="animate-fade-in"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '12px 16px',
+          backgroundColor: colors.white,
+          border: `1px solid ${colors.oceanMist}`,
+          borderRadius: '12px',
+          cursor: 'pointer',
+          textAlign: 'left',
+          transition: 'all 0.2s ease',
+          width: '100%',
+        }}
+      >
+        <span style={{ fontSize: '20px' }}>{suggestion.icon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 500, color: colors.coalGrey, fontSize: '14px' }}>{suggestion.label}</div>
+          {suggestion.sublabel && (
+            <div style={{ fontSize: '12px', color: colors.coalGrey, opacity: 0.6 }}>{suggestion.sublabel}</div>
+          )}
+        </div>
+        <div style={{
+          width: 24,
+          height: 24,
+          borderRadius: '50%',
+          backgroundColor: `${colors.oceanBlueMid}15`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '12px',
+          color: colors.oceanBlueMid,
+        }}>
+          →
+        </div>
+      </button>
+    );
+    
+    // Chat Message
+    const ChatMessage = ({ message, isUser }) => (
+      <div className="animate-fade-in" style={{
+        display: 'flex',
+        justifyContent: isUser ? 'flex-end' : 'flex-start',
+        marginBottom: '12px',
+      }}>
+        <div style={{
+          maxWidth: '80%',
+          padding: '14px 18px',
+          borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+          backgroundColor: isUser ? colors.oceanBlueDeep : colors.white,
+          color: isUser ? colors.white : colors.coalGrey,
+          boxShadow: isUser ? 'none' : '0 2px 8px rgba(0,0,0,0.06)',
+          fontSize: '15px',
+          lineHeight: 1.5,
+          whiteSpace: 'pre-wrap',
+        }}>
+          {message.content}
+        </div>
+      </div>
+    );
+    
+    // Voice Indicator
+    const VoiceIndicator = ({ isRecording }) => {
+      if (!isRecording) return null;
+      return (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          backgroundColor: `${colors.urgent}15`,
+          borderRadius: '20px',
+          marginBottom: '8px',
+        }}>
+          <div style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            backgroundColor: colors.urgent,
+            animation: 'pulse 1s infinite',
+          }} />
+          <span style={{ fontSize: '13px', color: colors.urgent, fontWeight: 500 }}>Listening...</span>
+        </div>
+      );
+    };
+    
+    // Quick Actions
+    const QuickActions = ({ onAction }) => {
+      const actions = [
+        { id: 'water', icon: '💧', label: 'Water' },
+        { id: 'photo', icon: '📸', label: 'Photo' },
+        { id: 'observe', icon: '👁️', label: 'Observe' },
+        { id: 'add', icon: '🌱', label: 'Add Plant' },
+      ];
+      
+      return (
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          overflowX: 'auto',
+          padding: '4px 0',
+          WebkitOverflowScrolling: 'touch',
+        }}>
+          {actions.map(action => (
+            <button
+              key={action.id}
+              onClick={() => onAction(action.id)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '12px 16px',
+                backgroundColor: colors.white,
+                border: `1px solid ${colors.oceanMist}`,
+                borderRadius: '14px',
+                cursor: 'pointer',
+                minWidth: '72px',
+              }}
+            >
+              <span style={{ fontSize: '22px' }}>{action.icon}</span>
+              <span style={{ fontSize: '12px', color: colors.coalGrey, fontWeight: 500 }}>{action.label}</span>
+            </button>
+          ))}
+        </div>
+      );
+    };
+    
+    // Mode Toggle
+    const ModeToggle = ({ mode, onToggle }) => (
+      <div style={{
+        display: 'flex',
+        backgroundColor: colors.softGrey,
+        borderRadius: '12px',
+        padding: '4px',
+      }}>
+        {['chat', 'manual'].map(m => (
+          <button
+            key={m}
+            onClick={() => onToggle(m)}
+            style={{
+              padding: '10px 20px',
+              borderRadius: '10px',
+              border: 'none',
+              backgroundColor: mode === m ? colors.white : 'transparent',
+              color: mode === m ? colors.oceanBlueDeep : colors.coalGrey,
+              fontWeight: mode === m ? 600 : 400,
+              fontSize: '14px',
+              cursor: 'pointer',
+              boxShadow: mode === m ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+            }}
+          >
+            {m === 'chat' ? '✨ AI Chat' : '📋 Manual'}
+          </button>
+        ))}
+      </div>
+    );
+    
+    // Bottom Navigation (Mobile)
+    const BottomNav = ({ active, onNavigate }) => {
+      const items = [
+        { id: 'garden', icon: '🏡', label: 'Garden' },
+        { id: 'add', icon: '🌱', label: 'Add' },
+        { id: 'chat', icon: '💬', label: 'Chat' },
+        { id: 'tasks', icon: '📋', label: 'Tasks' },
+        { id: 'profile', icon: '👤', label: 'Profile' },
+      ];
+      
+      return (
+        <nav style={{
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          padding: '12px 8px 24px',
+          backgroundColor: colors.white,
+          borderTop: `1px solid ${colors.softGrey}`,
+        }}>
+          {items.map(item => (
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '8px 12px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                opacity: active === item.id ? 1 : 0.5,
+              }}
+            >
+              <span style={{ 
+                fontSize: '22px',
+                filter: active === item.id ? 'none' : 'grayscale(0.5)',
+              }}>{item.icon}</span>
+              <span style={{ 
+                fontSize: '11px', 
+                color: active === item.id ? colors.oceanBlueDeep : colors.coalGrey,
+                fontWeight: active === item.id ? 600 : 400,
+              }}>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      );
+    };
+    
+    // Desktop Sidebar
+    const Sidebar = ({ active, onNavigate }) => {
+      const items = [
+        { id: 'garden', icon: '🏡', label: 'My Garden' },
+        { id: 'chat', icon: '💬', label: 'AI Assistant' },
+        { id: 'tasks', icon: '📋', label: 'Care Tasks' },
+        { id: 'activity', icon: '📊', label: 'Activity Log' },
+        { id: 'plants', icon: '🌿', label: 'All Plants' },
+      ];
+      
+      return (
+        <aside style={{
+          width: '260px',
+          height: '100vh',
+          backgroundColor: colors.white,
+          borderRight: `1px solid ${colors.softGrey}`,
+          padding: '24px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '12px',
+            padding: '8px 12px',
+            marginBottom: '8px',
+          }}>
+            <LogoSVG size={40} />
+            <div>
+              <div style={{ fontWeight: 700, color: colors.deepForestGreen, fontSize: '18px' }}>ShrubHub</div>
+              <div style={{ fontSize: '11px', color: colors.oceanBlueMid, fontStyle: 'italic' }}>Grow with the Flow</div>
+            </div>
+          </div>
+          
+          <button style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            padding: '14px',
+            margin: '16px 8px',
+            backgroundColor: colors.deepForestGreen,
+            color: colors.white,
+            border: 'none',
+            borderRadius: '12px',
+            fontSize: '15px',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}>
+            <span>🌱</span> Add New Plant
+          </button>
+          
+          <nav style={{ flex: 1 }}>
+            {items.map(item => (
+              <button
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  width: '100%',
+                  padding: '14px 16px',
+                  marginBottom: '4px',
+                  backgroundColor: active === item.id ? `${colors.oceanBlueDeep}10` : 'transparent',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>{item.icon}</span>
+                <span style={{ 
+                  fontSize: '15px', 
+                  color: active === item.id ? colors.oceanBlueDeep : colors.coalGrey,
+                  fontWeight: active === item.id ? 600 : 400,
+                }}>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+          
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '16px',
+            backgroundColor: colors.softGrey,
+            borderRadius: '12px',
+          }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              backgroundColor: colors.oceanBlueMid,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: colors.white,
+              fontWeight: 600,
+            }}>G</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, color: colors.coalGrey, fontSize: '14px' }}>Gardener</div>
+              <div style={{ fontSize: '12px', color: colors.coalGrey, opacity: 0.6 }}>Portland, OR • Zone 8b</div>
+            </div>
+          </div>
+        </aside>
+      );
+    };
+    
+    // ============================================
+    // MAIN APP
+    // ============================================
+    
+    function ShrubHubApp() {
+      const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+      const [activeView, setActiveView] = useState('chat');
+      const [mode, setMode] = useState('chat');
+      const [inputValue, setInputValue] = useState('');
+      const [suggestions, setSuggestions] = useState([]);
+      const [messages, setMessages] = useState(INITIAL_MESSAGES);
+      const [isRecording, setIsRecording] = useState(false);
+      const [showSuggestions, setShowSuggestions] = useState(false);
+      
+      useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+      }, []);
+      
+      useEffect(() => {
+        const newSuggestions = generateSuggestions(inputValue);
+        setSuggestions(newSuggestions);
+        setShowSuggestions(newSuggestions.length > 0 && inputValue.length > 0);
+      }, [inputValue]);
+      
+      const handleSuggestionClick = (suggestion) => {
+        setInputValue('');
+        setShowSuggestions(false);
+        
+        const userMessage = { 
+          id: Date.now().toString(), 
+          role: 'user', 
+          content: suggestion.label,
+          timestamp: new Date(),
+        };
+        
+        let aiResponse = '';
+        if (suggestion.action.type === 'log_activity') {
+          const plant = suggestion.action.plant;
+          const plantName = plant.customName || plant.commonName;
+          const activity = ACTIVITIES.find(a => a.id === suggestion.action.activity);
+          aiResponse = `✅ Got it! I've logged that you ${activity?.verb || 'cared for'} ${plantName}. ${plant.nextWater <= 1 ? `Next watering is due in ${plant.nextWater} day${plant.nextWater !== 1 ? 's' : ''}.` : 'Looking healthy! 🌿'}`;
+        } else if (suggestion.action.type === 'show_schedule') {
+          const plant = suggestion.action.plant;
+          const plantName = plant.customName || plant.commonName;
+          aiResponse = `📅 ${plantName}'s schedule:\n• Last watered: ${plant.lastWatered} days ago\n• Next watering: ${plant.nextWater === 0 ? 'Today!' : `in ${plant.nextWater} days`}\n• Location: ${plant.location}`;
+        } else if (suggestion.action.type === 'add_plant') {
+          aiResponse = `🌱 Let's add a new plant! Would you like to:\n\n📸 **Take a photo** for AI identification\n✍️ **Enter manually** if you know the species\n\nJust tap the camera button or tell me what kind of plant it is!`;
+        } else if (suggestion.action.type === 'troubleshoot') {
+          const plant = suggestion.action.plant;
+          const plantName = plant.customName || plant.commonName;
+          aiResponse = `🩺 Let me help diagnose ${plantName}.\n\nTo give you the best advice, can you:\n1. 📸 Take a photo of the affected area\n2. Describe what you're seeing\n3. Note any recent changes (watering, location, etc.)\n\nWhat symptoms are you noticing?`;
+        } else {
+          aiResponse = `I'll help you with that! What would you like to know?`;
+        }
+        
+        const botMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: aiResponse,
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, userMessage, botMessage]);
+      };
+      
+      const toggleRecording = () => {
+        setIsRecording(!isRecording);
+        if (!isRecording) {
+          setTimeout(() => {
+            setIsRecording(false);
+            setInputValue('I just watered Monty');
+          }, 2000);
+        }
+      };
+      
+      const handleSend = () => {
+        if (!inputValue.trim()) return;
+        
+        const userMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: inputValue,
+          timestamp: new Date(),
+        };
+        
+        const intents = detectIntent(inputValue);
+        let aiResponse = "I'm here to help with your garden! 🌿 Try asking me about watering schedules, plant care, or just tell me what you did today.";
+        
+        if (intents.some(i => i.type === 'activity')) {
+          aiResponse = "I noticed you mentioned a plant activity. Which plant would you like to log this for? You can say something like 'I watered Monty' or select from the suggestions above.";
+        }
+        
+        const botMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: aiResponse,
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, userMessage, botMessage]);
+        setInputValue('');
+        setShowSuggestions(false);
+      };
+      
+      const plantsNeedingCare = MOCK_PLANTS.filter(p => p.nextWater <= 1 || p.healthStatus === 'needs_attention');
+      
+      // ============================================
+      // MOBILE LAYOUT
+      // ============================================
+      if (isMobile) {
+        return (
+          <div style={{
+            minHeight: '100vh',
+            backgroundColor: colors.softGrey,
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            {/* Header */}
+            <header style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              backgroundColor: colors.white,
+              borderBottom: `1px solid ${colors.softGrey}`,
+              position: 'sticky',
+              top: 0,
+              zIndex: 100,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <LogoSVG size={36} />
+                <div>
+                  <div style={{ fontWeight: 700, color: colors.deepForestGreen, fontSize: '18px' }}>ShrubHub</div>
+                  <div style={{ fontSize: '10px', color: colors.oceanBlueMid, fontStyle: 'italic' }}>Grow with the Flow</div>
+                </div>
+              </div>
+              <ModeToggle mode={mode} onToggle={setMode} />
+            </header>
+            
+            {/* Main Content */}
+            <main style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+              {activeView === 'chat' && mode === 'chat' && (
+                <div style={{ paddingBottom: '200px' }}>
+                  {/* Urgent Care Alert */}
+                  {plantsNeedingCare.length > 0 && (
+                    <div style={{
+                      backgroundColor: `${colors.needsAttention}10`,
+                      border: `1px solid ${colors.needsAttention}40`,
+                      borderRadius: '14px',
+                      padding: '14px',
+                      marginBottom: '16px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <span>🌡️</span>
+                        <span style={{ fontWeight: 600, color: colors.coalGrey, fontSize: '14px' }}>
+                          {plantsNeedingCare.length} plant{plantsNeedingCare.length > 1 ? 's' : ''} need attention
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {plantsNeedingCare.slice(0, 3).map(plant => (
+                          <span key={plant.id} style={{
+                            padding: '6px 12px',
+                            backgroundColor: colors.white,
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            color: colors.coalGrey,
+                          }}>
+                            {plant.customName || plant.commonName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Chat Messages */}
+                  <div style={{ marginBottom: '16px' }}>
+                    {messages.map(msg => (
+                      <ChatMessage key={msg.id} message={msg} isUser={msg.role === 'user'} />
+                    ))}
+                  </div>
+                  
+                  {/* Quick Actions */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '12px', color: colors.coalGrey, opacity: 0.6, marginBottom: '8px', fontWeight: 500 }}>
+                      QUICK ACTIONS
+                    </div>
+                    <QuickActions onAction={(action) => setInputValue(`I want to ${action}`)} />
+                  </div>
+                </div>
+              )}
+              
+              {activeView === 'garden' && (
+                <div>
+                  <h2 style={{ fontWeight: 700, color: colors.deepForestGreen, fontSize: '24px', marginBottom: '16px' }}>
+                    My Garden
+                  </h2>
+                  
+                  {plantsNeedingCare.length > 0 && (
+                    <div style={{ marginBottom: '24px' }}>
+                      <h3 style={{ 
+                        fontSize: '14px', 
+                        color: colors.needsAttention, 
+                        fontWeight: 600,
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}>
+                        ⚠️ Needs Attention ({plantsNeedingCare.length})
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {plantsNeedingCare.map(plant => (
+                          <PlantCard key={plant.id} plant={plant} compact onClick={() => {}} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <h3 style={{ 
+                    fontSize: '14px', 
+                    color: colors.coalGrey, 
+                    fontWeight: 600,
+                    marginBottom: '12px',
+                    opacity: 0.7,
+                  }}>
+                    ALL PLANTS ({MOCK_PLANTS.length})
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '12px',
+                  }}>
+                    {MOCK_PLANTS.map((plant, i) => (
+                      <div key={plant.id} style={{ animationDelay: `${i * 0.05}s` }}>
+                        <PlantCard plant={plant} onClick={() => {}} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {mode === 'manual' && activeView === 'chat' && (
+                <div>
+                  <h2 style={{ fontWeight: 700, color: colors.deepForestGreen, fontSize: '24px', marginBottom: '8px' }}>
+                    Log Activity
+                  </h2>
+                  <p style={{ color: colors.coalGrey, opacity: 0.7, marginBottom: '20px', fontSize: '14px' }}>
+                    Select an activity type, then choose which plant
+                  </p>
+                  
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: '10px',
+                    marginBottom: '24px',
+                  }}>
+                    {ACTIVITIES.slice(0, 12).map(activity => (
+                      <button
+                        key={activity.id}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '16px 8px',
+                          backgroundColor: colors.white,
+                          border: `1px solid ${colors.oceanMist}`,
+                          borderRadius: '12px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ fontSize: '28px' }}>{activity.icon}</span>
+                        <span style={{ fontSize: '12px', color: colors.coalGrey, fontWeight: 500 }}>{activity.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </main>
+            
+            {/* Input Area */}
+            {activeView === 'chat' && (
+              <div style={{
+                position: 'fixed',
+                bottom: 80,
+                left: 0,
+                right: 0,
+                backgroundColor: colors.white,
+                borderTop: `1px solid ${colors.softGrey}`,
+                padding: '12px 16px',
+                zIndex: 100,
+              }}>
+                {showSuggestions && suggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: colors.softGrey,
+                    borderTop: `1px solid ${colors.oceanMist}`,
+                    padding: '12px',
+                    maxHeight: '300px',
+                    overflow: 'auto',
+                  }}>
+                    <div style={{ 
+                      fontSize: '11px', 
+                      color: colors.oceanBlueDeep, 
+                      fontWeight: 600, 
+                      marginBottom: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}>
+                      ✨ AI SUGGESTIONS
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {suggestions.map(suggestion => (
+                        <SuggestionPill 
+                          key={suggestion.id} 
+                          suggestion={suggestion} 
+                          onClick={handleSuggestionClick}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <VoiceIndicator isRecording={isRecording} />
+                
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  backgroundColor: colors.softGrey,
+                  borderRadius: '24px',
+                  padding: '6px 6px 6px 18px',
+                }}>
+                  <input
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder="Tell me what's happening..."
+                    style={{
+                      flex: 1,
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      fontSize: '15px',
+                      color: colors.coalGrey,
+                      outline: 'none',
+                    }}
+                  />
+                  
+                  <button
+                    onClick={toggleRecording}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      border: 'none',
+                      backgroundColor: isRecording ? colors.urgent : colors.oceanBlueMid,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: '20px' }}>{isRecording ? '⏹️' : '🎤'}</span>
+                  </button>
+                  
+                  <button
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      border: 'none',
+                      backgroundColor: colors.deepForestGreen,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: '20px' }}>📸</span>
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Bottom Navigation */}
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}>
+              <BottomNav active={activeView} onNavigate={setActiveView} />
+            </div>
+          </div>
+        );
+      }
+      
+      // ============================================
+      // DESKTOP LAYOUT
+      // ============================================
+      return (
+        <div style={{
+          minHeight: '100vh',
+          backgroundColor: colors.softGrey,
+          display: 'flex',
+        }}>
+          <Sidebar active={activeView} onNavigate={setActiveView} />
+          
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh' }}>
+            {/* Top Bar */}
+            <header style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 32px',
+              backgroundColor: colors.white,
+              borderBottom: `1px solid ${colors.softGrey}`,
+            }}>
+              <div>
+                <h1 style={{ fontWeight: 700, color: colors.deepForestGreen, fontSize: '24px', margin: 0 }}>
+                  {activeView === 'chat' ? 'AI Garden Assistant' : 
+                   activeView === 'garden' ? 'My Garden' : 
+                   activeView === 'tasks' ? 'Care Tasks' : 'Dashboard'}
+                </h1>
+                <p style={{ color: colors.coalGrey, opacity: 0.6, margin: '4px 0 0', fontSize: '14px' }}>
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} • Portland, OR • Partly cloudy 68°F
+                </p>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <ModeToggle mode={mode} onToggle={setMode} />
+                <button style={{
+                  padding: '10px 20px',
+                  backgroundColor: colors.deepForestGreen,
+                  color: colors.white,
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}>
+                  <span>🌱</span> Add Plant
+                </button>
+              </div>
+            </header>
+            
+            {/* Content Grid */}
+            <main style={{ 
+              flex: 1, 
+              overflow: 'auto', 
+              padding: '24px 32px',
+              display: 'grid',
+              gridTemplateColumns: activeView === 'chat' ? '1fr 380px' : '1fr',
+              gap: '24px',
+            }}>
+              {/* Main Panel */}
+              <div style={{
+                backgroundColor: colors.white,
+                borderRadius: '16px',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+              }}>
+                {activeView === 'chat' && (
+                  <>
+                    <div style={{ flex: 1, padding: '24px', overflow: 'auto', backgroundColor: colors.softGrey }}>
+                      {messages.map(msg => (
+                        <ChatMessage key={msg.id} message={msg} isUser={msg.role === 'user'} />
+                      ))}
+                    </div>
+                    
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div style={{
+                        padding: '16px 24px',
+                        backgroundColor: colors.oceanMist,
+                        borderTop: `1px solid ${colors.oceanBlueLight}`,
+                      }}>
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: colors.oceanBlueDeep, 
+                          fontWeight: 600, 
+                          marginBottom: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}>
+                          ✨ AI DETECTED INTENTS
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          {suggestions.map(suggestion => (
+                            <button
+                              key={suggestion.id}
+                              onClick={() => handleSuggestionClick(suggestion)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 16px',
+                                backgroundColor: colors.white,
+                                border: `1px solid ${colors.oceanBlueMid}`,
+                                borderRadius: '20px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <span>{suggestion.icon}</span>
+                              <span style={{ fontSize: '14px', color: colors.coalGrey }}>{suggestion.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div style={{
+                      padding: '20px 24px',
+                      backgroundColor: colors.white,
+                      borderTop: `1px solid ${colors.softGrey}`,
+                    }}>
+                      <VoiceIndicator isRecording={isRecording} />
+                      
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        backgroundColor: colors.softGrey,
+                        borderRadius: '28px',
+                        padding: '8px 8px 8px 24px',
+                      }}>
+                        <input
+                          type="text"
+                          value={inputValue}
+                          onChange={(e) => setInputValue(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                          placeholder="Tell me what's happening in your garden... try 'I watered Monty' or 'How is Basil doing?'"
+                          style={{
+                            flex: 1,
+                            border: 'none',
+                            backgroundColor: 'transparent',
+                            fontSize: '15px',
+                            color: colors.coalGrey,
+                            outline: 'none',
+                          }}
+                        />
+                        
+                        <button
+                          onClick={toggleRecording}
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: '50%',
+                            border: 'none',
+                            backgroundColor: isRecording ? colors.urgent : colors.oceanBlueMid,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <span style={{ fontSize: '22px' }}>{isRecording ? '⏹️' : '🎤'}</span>
+                        </button>
+                        
+                        <button
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: '50%',
+                            border: 'none',
+                            backgroundColor: colors.deepForestGreen,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <span style={{ fontSize: '22px' }}>📸</span>
+                        </button>
+                        
+                        <button
+                          onClick={handleSend}
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: '50%',
+                            border: 'none',
+                            backgroundColor: colors.oceanBlueDeep,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <span style={{ fontSize: '20px', color: colors.white }}>➤</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+                
+                {activeView === 'garden' && (
+                  <div style={{ padding: '24px', overflow: 'auto' }}>
+                    {plantsNeedingCare.length > 0 && (
+                      <div style={{ marginBottom: '32px' }}>
+                        <h3 style={{ 
+                          fontSize: '16px', 
+                          color: colors.needsAttention, 
+                          fontWeight: 600,
+                          marginBottom: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}>
+                          ⚠️ Needs Attention ({plantsNeedingCare.length})
+                        </h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
+                          {plantsNeedingCare.map(plant => (
+                            <PlantCard key={plant.id} plant={plant} compact onClick={() => {}} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <h3 style={{ 
+                      fontSize: '14px', 
+                      color: colors.coalGrey, 
+                      fontWeight: 600,
+                      marginBottom: '16px',
+                      opacity: 0.7,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      All Plants ({MOCK_PLANTS.length})
+                    </h3>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                      gap: '16px',
+                    }}>
+                      {MOCK_PLANTS.map(plant => (
+                        <PlantCard key={plant.id} plant={plant} onClick={() => {}} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Right Sidebar (Desktop only, Chat view) */}
+              {activeView === 'chat' && (
+                <div style={{
+                  backgroundColor: colors.white,
+                  borderRadius: '16px',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                  padding: '20px',
+                  overflow: 'auto',
+                }}>
+                  <h3 style={{ fontSize: '16px', color: colors.deepForestGreen, fontWeight: 600, marginBottom: '16px' }}>
+                    🌿 Quick Garden View
+                  </h3>
+                  
+                  {plantsNeedingCare.length > 0 && (
+                    <div style={{
+                      backgroundColor: `${colors.needsAttention}10`,
+                      borderRadius: '12px',
+                      padding: '14px',
+                      marginBottom: '16px',
+                    }}>
+                      <div style={{ fontSize: '13px', color: colors.needsAttention, fontWeight: 600, marginBottom: '10px' }}>
+                        Today's Tasks
+                      </div>
+                      {plantsNeedingCare.map(plant => (
+                        <div key={plant.id} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 0',
+                          borderBottom: `1px solid ${colors.needsAttention}20`,
+                        }}>
+                          <span style={{ fontSize: '18px' }}>💧</span>
+                          <span style={{ flex: 1, fontSize: '14px', color: colors.coalGrey }}>
+                            Water {plant.customName || plant.commonName}
+                          </span>
+                          <button style={{
+                            padding: '6px 12px',
+                            backgroundColor: colors.deepForestGreen,
+                            color: colors.white,
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                          }}>
+                            Done
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {MOCK_PLANTS.slice(0, 5).map(plant => (
+                      <div key={plant.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px',
+                        backgroundColor: colors.softGrey,
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                      }}>
+                        <div style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '10px',
+                          background: `linear-gradient(135deg, ${colors.lightLeafGreen}40, ${colors.deepLeafGreen}40)`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '20px',
+                        }}>
+                          🌿
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 500, color: colors.coalGrey, fontSize: '14px' }}>
+                            {plant.customName || plant.commonName}
+                          </div>
+                          <div style={{ fontSize: '12px', color: colors.coalGrey, opacity: 0.6 }}>
+                            {plant.location}
+                          </div>
+                        </div>
+                        <StatusBadge status={plant.healthStatus} />
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <button
+                    onClick={() => setActiveView('garden')}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      marginTop: '16px',
+                      backgroundColor: 'transparent',
+                      border: `1px solid ${colors.oceanBlueMid}`,
+                      borderRadius: '10px',
+                      color: colors.oceanBlueMid,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    View All Plants →
+                  </button>
+                </div>
+              )}
+            </main>
+          </div>
+        </div>
+      );
+    }
+    
+    ReactDOM.createRoot(document.getElementById('root')).render(<ShrubHubApp />);
+  </script>
+</body>
+</html>
