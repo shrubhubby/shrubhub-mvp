@@ -274,12 +274,12 @@ export default function AddPlantPage() {
         setIdResult(data)
         setIdStatus('done')
         if (data.suggestions?.length > 0) {
+          // Always auto-fill from top suggestion
           const top = data.suggestions[0]
-          if (top.confidence > 0.7) {
-            setCommonName(top.common_name)
-            setScientificName(top.scientific_name)
-            if (top.plant_master_id) setPlantMasterId(top.plant_master_id)
-          }
+          setCommonName(top.common_name || '')
+          setScientificName(top.scientific_name || '')
+          if (top.plant_master_id) setPlantMasterId(top.plant_master_id)
+          // Always show suggestions so user can pick alternatives
           setShowSuggestions(true)
         }
       }

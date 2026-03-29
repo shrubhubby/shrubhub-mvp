@@ -49,8 +49,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
-    return NextResponse.json(data)
+    const raw = await response.json()
+
+    // Normalize response into { suggestions: [...] } format
+    // Handle various upstream shapes (Plant.id, custom edge function, etc.)
+    let suggestions = raw.suggestions || []
+
+    // Plant.id API format: { results: [{ species: { scientificName, commonNames }, score }] }
+    if (raw.results && Array.isArray(raw.results)) {
+      suggestions = raw.results.map((r: any) => ({
+        common_name: r.species?.commonNames?.[0] || r.name || 'Unknown',
+        scientific_name: r.species?.scientificName || r.scientific_name || '',
+        confidence: r.score ?? r.probability ?? r.confidence ?? 0,
+        plant_master_id: r.plant_master_id || null,
+      }))
+    }
+
+    // If suggestions came in but with different field names
+    if (suggestions.length > 0 && suggestions[0].name && !suggestions[0].common_name) {
+      suggestions = suggestions.map((s: any) => ({
+        common_name: s.name || s.common_name || 'Unknown',
+        scientific_name: s.scientific_name || s.scientificName || '',
+        confidence: s.score ?? s.probability ?? s.confidence ?? 0,
+        plant_master_id: s.plant_master_id || null,
+      }))
+    }
+
+    return NextResponse.json({ suggestions, raw_response: raw })
   } catch (error) {
     console.error('Error in POST /api/identify-plant:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
