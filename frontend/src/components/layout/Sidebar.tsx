@@ -3,12 +3,14 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Sprout, MessageCircle, Calendar, Settings, LogOut } from 'lucide-react'
+import { Home, Sprout, MessageCircle, Calendar, Fence, MapPin, Settings, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/plants', label: 'My Plants', icon: Sprout },
+  { href: '/gardens', label: 'Gardens', icon: Fence },
+  { href: '/sites', label: 'Locations', icon: MapPin },
   { href: '/chat', label: 'AI Assistant', icon: MessageCircle },
   { href: '/activities', label: 'Activities', icon: Calendar }
 ]

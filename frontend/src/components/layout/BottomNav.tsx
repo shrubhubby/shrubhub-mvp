@@ -3,14 +3,15 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Sprout, MessageCircle, Calendar } from 'lucide-react'
+import { Home, Sprout, Fence, MapPin, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/plants', label: 'Plants', icon: Sprout },
-  { href: '/chat', label: 'Chat', icon: MessageCircle },
-  { href: '/activities', label: 'Activities', icon: Calendar }
+  { href: '/gardens', label: 'Gardens', icon: Fence },
+  { href: '/sites', label: 'Locations', icon: MapPin },
+  { href: '/chat', label: 'Chat', icon: MessageCircle }
 ]
 
 export function BottomNav() {
