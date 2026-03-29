@@ -18,10 +18,21 @@ import {
   X,
   AlertCircle,
   Image as ImageIcon,
+  Tag,
+  Plus,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 // --- Types ---
+
+type PhotoType = 'identification' | 'tag_label' | 'general'
+
+interface PlantPhoto {
+  id: string
+  file: File
+  previewUrl: string
+  type: PhotoType
+}
 
 interface ExifData {
   lat: number | null
@@ -43,7 +54,17 @@ interface IdentificationResult {
   message?: string
 }
 
+interface TagLabelResult {
+  care_instructions: string | null
+  brand: string | null
+  variety: string | null
+  raw_text: string | null
+}
+
 type BackgroundStatus = 'idle' | 'running' | 'done' | 'error'
+
+let photoIdCounter = 0
+function nextPhotoId() { return `photo_${++photoIdCounter}` }
 
 // --- EXIF extraction (client-side, no dependency) ---
 
@@ -181,18 +202,22 @@ function fileToBase64(file: File): Promise<string> {
 
 export default function AddPlantPage() {
   const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const plantPhotoRef = useRef<HTMLInputElement>(null)
+  const tagPhotoRef = useRef<HTMLInputElement>(null)
+  const additionalPhotoRef = useRef<HTMLInputElement>(null)
 
-  // Image state
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+  // Multi-photo state
+  const [photos, setPhotos] = useState<PlantPhoto[]>([])
 
   // Background process state
   const [idStatus, setIdStatus] = useState<BackgroundStatus>('idle')
   const [exifStatus, setExifStatus] = useState<BackgroundStatus>('idle')
+  const [tagStatus, setTagStatus] = useState<BackgroundStatus>('idle')
   const [idResult, setIdResult] = useState<IdentificationResult | null>(null)
   const [idError, setIdError] = useState<string | null>(null)
   const [exifData, setExifData] = useState<ExifData | null>(null)
+  const [tagResult, setTagResult] = useState<TagLabelResult | null>(null)
+  const [tagError, setTagError] = useState<string | null>(null)
 
   // Form state
   const [customName, setCustomName] = useState('')
@@ -213,6 +238,11 @@ export default function AddPlantPage() {
 
   // Suggestion selection
   const [showSuggestions, setShowSuggestions] = useState(false)
+
+  // Derived
+  const plantPhoto = photos.find(p => p.type === 'identification')
+  const tagPhoto = photos.find(p => p.type === 'tag_label')
+  const additionalPhotos = photos.filter(p => p.type === 'general')
 
   // Load gardens on mount
   useEffect(() => {
@@ -242,36 +272,75 @@ export default function AddPlantPage() {
     loadGardens()
   }, [])
 
-  // Kick off background processes when image is selected
-  const handleImageSelected = useCallback(async (file: File) => {
-    setImageFile(file)
-    setImagePreviewUrl(URL.createObjectURL(file))
+  // --- Photo handlers ---
+
+  const addPhoto = useCallback((file: File, type: PhotoType) => {
+    const photo: PlantPhoto = {
+      id: nextPhotoId(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+      type,
+    }
+    setPhotos(prev => {
+      // For identification and tag_label, replace existing of same type
+      if (type === 'identification' || type === 'tag_label') {
+        const existing = prev.find(p => p.type === type)
+        if (existing) URL.revokeObjectURL(existing.previewUrl)
+        return [...prev.filter(p => p.type !== type), photo]
+      }
+      return [...prev, photo]
+    })
+    return photo
+  }, [])
+
+  const removePhoto = useCallback((id: string) => {
+    setPhotos(prev => {
+      const photo = prev.find(p => p.id === id)
+      if (photo) URL.revokeObjectURL(photo.previewUrl)
+      const isPlant = photo?.type === 'identification'
+      if (isPlant) {
+        setIdStatus('idle')
+        setIdResult(null)
+        setIdError(null)
+        setExifStatus('idle')
+        setExifData(null)
+      }
+      if (photo?.type === 'tag_label') {
+        setTagStatus('idle')
+        setTagResult(null)
+        setTagError(null)
+      }
+      return prev.filter(p => p.id !== id)
+    })
+  }, [])
+
+  // Kick off identification + EXIF when plant photo is added
+  const handlePlantPhoto = useCallback(async (file: File) => {
+    addPhoto(file, 'identification')
     setIdResult(null)
     setIdError(null)
     setExifData(null)
 
-    // --- EXIF extraction (runs immediately, client-side) ---
+    // --- EXIF extraction (client-side) ---
     setExifStatus('running')
     extractExifFromFile(file).then((data) => {
       setExifData(data)
       setExifStatus('done')
-      // Auto-fill from EXIF
       if (data.lat != null && data.lng != null) {
         setLocationLat(data.lat.toFixed(6))
         setLocationLng(data.lng.toFixed(6))
       }
       if (data.timestamp) {
-        // EXIF dates are "YYYY:MM:DD HH:MM:SS" — convert to date input format
         const dateStr = data.timestamp.replace(/^(\d{4}):(\d{2}):(\d{2}).*/, '$1-$2-$3')
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
           setAcquiredDate(dateStr)
         }
       }
     }).catch(() => {
-      setExifStatus('done') // Non-critical
+      setExifStatus('done')
     })
 
-    // --- Plant identification (async API call) ---
+    // --- Plant identification ---
     setIdStatus('running')
     try {
       const base64 = await fileToBase64(file)
@@ -287,7 +356,6 @@ export default function AddPlantPage() {
       } else {
         setIdResult(data)
         setIdStatus('done')
-        // Auto-select top suggestion if high confidence
         if (data.suggestions?.length > 0) {
           const top = data.suggestions[0]
           if (top.confidence > 0.7) {
@@ -302,11 +370,43 @@ export default function AddPlantPage() {
       setIdError('Could not reach identification service')
       setIdStatus('error')
     }
-  }, [])
+  }, [addPhoto])
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Kick off AI extraction when tag/label photo is added
+  const handleTagPhoto = useCallback(async (file: File) => {
+    addPhoto(file, 'tag_label')
+    setTagResult(null)
+    setTagError(null)
+    setTagStatus('running')
+
+    try {
+      const base64 = await fileToBase64(file)
+      const res = await fetch('/api/extract-tag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: base64 }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTagError(data.error || 'Could not read tag')
+        setTagStatus('error')
+      } else {
+        setTagResult(data)
+        setTagStatus('done')
+      }
+    } catch {
+      setTagError('Could not reach tag reading service')
+      setTagStatus('error')
+    }
+  }, [addPhoto])
+
+  const handleFileInput = (type: PhotoType) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) handleImageSelected(file)
+    if (!file) return
+    if (type === 'identification') handlePlantPhoto(file)
+    else if (type === 'tag_label') handleTagPhoto(file)
+    else addPhoto(file, 'general')
+    e.target.value = '' // Allow re-selecting same file
   }
 
   const selectSuggestion = (s: IdentificationSuggestion) => {
@@ -347,29 +447,38 @@ export default function AddPlantPage() {
 
       const { plant } = await res.json()
 
-      // Upload photo and create plant_photos record if we have an image
-      if (imageFile && plant?.id) {
+      // Upload all photos and create plant_photos records
+      if (photos.length > 0 && plant?.id) {
         const supabase = createClient()
-        const ext = imageFile.name.split('.').pop() || 'jpg'
-        const storagePath = `plants/${plant.id}/${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('plant-photos')
-          .upload(storagePath, imageFile)
+        const now = new Date().toISOString()
 
-        if (!uploadError) {
-          await supabase.from('plant_photos').insert({
-            plant_id: plant.id,
-            storage_bucket: 'plant-photos',
-            storage_path: storagePath,
-            taken_at: acquiredDate,
-            uploaded_at: new Date().toISOString(),
-            mime_type: imageFile.type,
-            file_size_bytes: imageFile.size,
-            photo_type: 'identification' as const,
-            is_primary: true,
-            display_order: 0,
-          })
-        }
+        await Promise.all(photos.map(async (photo, index) => {
+          const ext = photo.file.name.split('.').pop() || 'jpg'
+          const storagePath = `plants/${plant.id}/${photo.type}_${Date.now()}_${index}.${ext}`
+          const { error: uploadError } = await supabase.storage
+            .from('plant-photos')
+            .upload(storagePath, photo.file)
+
+          if (!uploadError) {
+            const insertData: Record<string, any> = {
+              plant_id: plant.id,
+              storage_bucket: 'plant-photos',
+              storage_path: storagePath,
+              taken_at: acquiredDate,
+              uploaded_at: now,
+              mime_type: photo.file.type,
+              file_size_bytes: photo.file.size,
+              photo_type: photo.type,
+              is_primary: photo.type === 'identification',
+              display_order: index,
+            }
+            // Attach tag extraction results as identification_data
+            if (photo.type === 'tag_label' && tagResult) {
+              insertData.identification_data = tagResult
+            }
+            await supabase.from('plant_photos').insert(insertData)
+          }
+        }))
       }
 
       router.push('/plants')
@@ -378,17 +487,6 @@ export default function AddPlantPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  const clearImage = () => {
-    setImageFile(null)
-    setImagePreviewUrl(null)
-    setIdStatus('idle')
-    setExifStatus('idle')
-    setIdResult(null)
-    setIdError(null)
-    setExifData(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   return (
@@ -401,68 +499,93 @@ export default function AddPlantPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Step 1: Photo capture */}
+        {/* Photos section */}
         <Card>
           <CardHeader>
             <h2 className="text-lg font-semibold text-coal">
               <Camera size={18} className="inline mr-2 -mt-0.5" />
-              Plant Photo
+              Photos
             </h2>
           </CardHeader>
-          <CardContent>
-            {!imagePreviewUrl ? (
-              <div
-                className="border-2 border-dashed border-soft rounded-lg p-8 text-center hover:border-forest transition-colors cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="space-y-3">
-                  <div className="flex justify-center gap-4">
-                    <div className="w-14 h-14 bg-forest/10 rounded-full flex items-center justify-center">
-                      <Camera size={24} className="text-forest" />
-                    </div>
-                    <div className="w-14 h-14 bg-ocean-deep/10 rounded-full flex items-center justify-center">
-                      <Upload size={24} className="text-ocean-deep" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-coal font-medium">Take a photo or upload one</p>
-                    <p className="text-sm text-coal/50 mt-1">
-                      We&apos;ll identify it automatically and extract location data
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imagePreviewUrl}
-                  alt="Plant photo"
-                  className="w-full max-h-72 object-contain rounded-lg bg-soft"
-                />
-                <button
-                  type="button"
-                  onClick={clearImage}
-                  className="absolute top-2 right-2 w-8 h-8 bg-coal/70 text-white rounded-full flex items-center justify-center hover:bg-coal"
-                >
-                  <X size={16} />
-                </button>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              {/* Plant photo slot */}
+              <PhotoSlot
+                photo={plantPhoto}
+                label="Plant Photo"
+                sublabel="AI will identify it"
+                icon={<Camera size={24} className="text-forest" />}
+                accentClass="bg-forest/10 border-forest/30 hover:border-forest"
+                onAdd={() => plantPhotoRef.current?.click()}
+                onRemove={(id) => removePhoto(id)}
+                statusPills={
+                  <>
+                    <StatusPill status={idStatus} label="Identifying" doneLabel="Identified" errorLabel="ID failed" />
+                    <StatusPill status={exifStatus} label="Metadata" doneLabel="Metadata read" errorLabel="No metadata" />
+                  </>
+                }
+              />
 
-                {/* Background process indicators */}
-                <div className="flex gap-3 mt-3">
-                  <StatusPill status={idStatus} label="Identifying" doneLabel="Identified" errorLabel="ID failed" />
-                  <StatusPill status={exifStatus} label="Reading metadata" doneLabel="Metadata read" errorLabel="No metadata" />
+              {/* Tag / Label photo slot */}
+              <PhotoSlot
+                photo={tagPhoto}
+                label="Tag / Label"
+                sublabel="We'll read care instructions"
+                icon={<Tag size={24} className="text-ocean-deep" />}
+                accentClass="bg-ocean-deep/10 border-ocean-deep/30 hover:border-ocean-deep"
+                onAdd={() => tagPhotoRef.current?.click()}
+                onRemove={(id) => removePhoto(id)}
+                statusPills={
+                  <StatusPill status={tagStatus} label="Reading label" doneLabel="Label read" errorLabel="Read failed" />
+                }
+              />
+            </div>
+
+            {/* Additional photos */}
+            {additionalPhotos.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-coal/50 mb-2">Additional Photos</p>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {additionalPhotos.map((photo) => (
+                    <div key={photo.id} className="relative aspect-square rounded-lg overflow-hidden bg-soft">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={photo.previewUrl} alt="Additional" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(photo.id)}
+                        className="absolute top-1 right-1 w-6 h-6 bg-coal/70 text-white rounded-full flex items-center justify-center hover:bg-coal"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => additionalPhotoRef.current?.click()}
+                    className="aspect-square rounded-lg border-2 border-dashed border-soft hover:border-coal/30 flex items-center justify-center transition-colors"
+                  >
+                    <Plus size={20} className="text-coal/30" />
+                  </button>
                 </div>
               </div>
             )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleFileChange}
-            />
+
+            {/* Add more photos link (when no additional yet) */}
+            {additionalPhotos.length === 0 && (
+              <button
+                type="button"
+                onClick={() => additionalPhotoRef.current?.click()}
+                className="w-full text-sm text-ocean-deep font-medium py-2 hover:underline"
+              >
+                <Plus size={14} className="inline -mt-0.5 mr-1" />
+                Add more photos
+              </button>
+            )}
+
+            {/* Hidden file inputs */}
+            <input ref={plantPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileInput('identification')} />
+            <input ref={tagPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileInput('tag_label')} />
+            <input ref={additionalPhotoRef} type="file" accept="image/*" className="hidden" onChange={handleFileInput('general')} />
           </CardContent>
         </Card>
 
@@ -541,6 +664,45 @@ export default function AddPlantPage() {
               {exifData.timestamp && ` date (${exifData.timestamp.split(' ')[0].replace(/:/g, '-')})`}
               {exifData.make && `, shot on ${exifData.make} ${exifData.model || ''}`}
             </span>
+          </div>
+        )}
+
+        {/* Tag / Label extraction results */}
+        {tagResult && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-lg font-semibold text-coal">
+                <Tag size={18} className="inline mr-2 -mt-0.5" />
+                From Tag / Label
+              </h2>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {tagResult.brand && (
+                <div><span className="font-medium text-coal">Brand:</span> <span className="text-coal/70">{tagResult.brand}</span></div>
+              )}
+              {tagResult.variety && (
+                <div><span className="font-medium text-coal">Variety:</span> <span className="text-coal/70">{tagResult.variety}</span></div>
+              )}
+              {tagResult.care_instructions && (
+                <div>
+                  <span className="font-medium text-coal">Care Instructions:</span>
+                  <p className="text-coal/70 mt-1 whitespace-pre-line bg-soft/50 rounded-lg p-3">{tagResult.care_instructions}</p>
+                </div>
+              )}
+              {tagResult.raw_text && !tagResult.care_instructions && (
+                <div>
+                  <span className="font-medium text-coal">Text found:</span>
+                  <p className="text-coal/70 mt-1 whitespace-pre-line bg-soft/50 rounded-lg p-3">{tagResult.raw_text}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {tagStatus === 'error' && (
+          <div className="flex items-start gap-2 px-4 py-3 bg-attention/10 rounded-lg text-sm text-coal">
+            <AlertCircle size={16} className="text-attention mt-0.5 flex-shrink-0" />
+            <span>{tagError || 'Could not read tag.'} You can enter care details manually.</span>
           </div>
         )}
 
@@ -667,6 +829,59 @@ export default function AddPlantPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+// --- Photo slot component ---
+
+function PhotoSlot({ photo, label, sublabel, icon, accentClass, onAdd, onRemove, statusPills }: {
+  photo?: PlantPhoto
+  label: string
+  sublabel: string
+  icon: React.ReactNode
+  accentClass: string
+  onAdd: () => void
+  onRemove: (id: string) => void
+  statusPills?: React.ReactNode
+}) {
+  if (photo) {
+    return (
+      <div className="relative">
+        <div className="aspect-square rounded-lg overflow-hidden bg-soft relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo.previewUrl} alt={label} className="w-full h-full object-cover" />
+          <button
+            type="button"
+            onClick={() => onRemove(photo.id)}
+            className="absolute top-2 right-2 w-7 h-7 bg-coal/70 text-white rounded-full flex items-center justify-center hover:bg-coal"
+          >
+            <X size={14} />
+          </button>
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-coal/60 to-transparent px-2 pb-2 pt-6">
+            <p className="text-xs font-medium text-white">{label}</p>
+          </div>
+        </div>
+        {statusPills && (
+          <div className="flex flex-wrap gap-1.5 mt-2">{statusPills}</div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className={`aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors ${accentClass}`}
+    >
+      <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center shadow-sm">
+        {icon}
+      </div>
+      <div className="text-center px-2">
+        <p className="text-sm font-medium text-coal">{label}</p>
+        <p className="text-xs text-coal/50">{sublabel}</p>
+      </div>
+    </button>
   )
 }
 

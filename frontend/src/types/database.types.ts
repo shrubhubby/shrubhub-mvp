@@ -118,7 +118,7 @@ export interface Database {
           uploaded_at: string
           file_size_bytes: number | null
           mime_type: string | null
-          photo_type: 'identification' | 'general' | 'progress' | 'issue' | 'bloom' | 'harvest' | 'before_after'
+          photo_type: 'identification' | 'tag_label' | 'general' | 'progress' | 'issue' | 'bloom' | 'harvest' | 'before_after'
           caption: string | null
           identification_data: Json | null
           is_primary: boolean
