@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Input'
+import exifr from 'exifr'
 import {
   Camera,
   Upload,
@@ -66,123 +67,33 @@ type BackgroundStatus = 'idle' | 'running' | 'done' | 'error'
 let photoIdCounter = 0
 function nextPhotoId() { return `photo_${++photoIdCounter}` }
 
-// --- EXIF extraction (client-side, no dependency) ---
+// --- EXIF extraction using exifr ---
 
-function extractExifFromFile(file: File): Promise<ExifData> {
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const result: ExifData = { lat: null, lng: null, timestamp: null, make: null, model: null }
-      try {
-        const view = new DataView(e.target!.result as ArrayBuffer)
-        // Check for JPEG SOI marker
-        if (view.getUint16(0) !== 0xFFD8) {
-          resolve(result)
-          return
-        }
-        const length = view.byteLength
-        let offset = 2
-        while (offset < length) {
-          if (view.getUint16(offset) === 0xFFE1) {
-            const exif = parseExifBlock(view, offset + 4)
-            resolve({ ...result, ...exif })
-            return
-          }
-          offset += 2 + view.getUint16(offset + 2)
-        }
-      } catch {
-        // EXIF parsing failed — not critical
-      }
-      resolve(result)
+async function extractExifFromFile(file: File): Promise<ExifData> {
+  const result: ExifData = { lat: null, lng: null, timestamp: null, make: null, model: null }
+  try {
+    const parsed = await exifr.parse(file, {
+      gps: true,
+      pick: ['DateTimeOriginal', 'DateTime', 'Make', 'Model', 'latitude', 'longitude'],
+    })
+    if (!parsed) return result
+
+    if (parsed.latitude != null && parsed.longitude != null) {
+      result.lat = parsed.latitude
+      result.lng = parsed.longitude
     }
-    reader.readAsArrayBuffer(file)
-  })
-}
-
-function parseExifBlock(view: DataView, start: number): Partial<ExifData> {
-  const result: Partial<ExifData> = {}
-  // Verify Exif header
-  const exifHeader = String.fromCharCode(
-    view.getUint8(start), view.getUint8(start + 1),
-    view.getUint8(start + 2), view.getUint8(start + 3)
-  )
-  if (exifHeader !== 'Exif') return result
-
-  const tiffStart = start + 6
-  const littleEndian = view.getUint16(tiffStart) === 0x4949
-
-  const ifdOffset = view.getUint32(tiffStart + 4, littleEndian)
-  const entries = view.getUint16(tiffStart + ifdOffset, littleEndian)
-
-  const gpsData: Record<number, any> = {}
-  let gpsIfdOffset: number | null = null
-
-  for (let i = 0; i < entries; i++) {
-    const entryOffset = tiffStart + ifdOffset + 2 + i * 12
-    const tag = view.getUint16(entryOffset, littleEndian)
-
-    // DateTimeOriginal might be in IFD0 as DateTime (0x0132)
-    if (tag === 0x0132) {
-      result.timestamp = readExifString(view, tiffStart, entryOffset, littleEndian)
+    const dateVal = parsed.DateTimeOriginal || parsed.DateTime
+    if (dateVal instanceof Date) {
+      result.timestamp = dateVal.toISOString()
+    } else if (typeof dateVal === 'string') {
+      result.timestamp = dateVal
     }
-    // Make (0x010F)
-    if (tag === 0x010F) {
-      result.make = readExifString(view, tiffStart, entryOffset, littleEndian)
-    }
-    // Model (0x0110)
-    if (tag === 0x0110) {
-      result.model = readExifString(view, tiffStart, entryOffset, littleEndian)
-    }
-    // GPS IFD pointer (0x8825)
-    if (tag === 0x8825) {
-      gpsIfdOffset = view.getUint32(entryOffset + 8, littleEndian)
-    }
+    if (parsed.Make) result.make = parsed.Make
+    if (parsed.Model) result.model = parsed.Model
+  } catch {
+    // EXIF parsing failed — non-critical
   }
-
-  // Parse GPS IFD
-  if (gpsIfdOffset !== null) {
-    const gpsEntries = view.getUint16(tiffStart + gpsIfdOffset, littleEndian)
-    for (let i = 0; i < gpsEntries; i++) {
-      const entryOffset = tiffStart + gpsIfdOffset + 2 + i * 12
-      const tag = view.getUint16(entryOffset, littleEndian)
-      const type = view.getUint16(entryOffset + 2, littleEndian)
-
-      if (tag === 1) { // GPSLatitudeRef
-        gpsData.latRef = String.fromCharCode(view.getUint8(entryOffset + 8))
-      } else if (tag === 3) { // GPSLongitudeRef
-        gpsData.lngRef = String.fromCharCode(view.getUint8(entryOffset + 8))
-      } else if (tag === 2 && type === 5) { // GPSLatitude
-        gpsData.lat = readGpsCoordinate(view, tiffStart, entryOffset, littleEndian)
-      } else if (tag === 4 && type === 5) { // GPSLongitude
-        gpsData.lng = readGpsCoordinate(view, tiffStart, entryOffset, littleEndian)
-      }
-    }
-
-    if (gpsData.lat != null && gpsData.lng != null) {
-      result.lat = gpsData.latRef === 'S' ? -gpsData.lat : gpsData.lat
-      result.lng = gpsData.lngRef === 'W' ? -gpsData.lng : gpsData.lng
-    }
-  }
-
   return result
-}
-
-function readGpsCoordinate(view: DataView, tiffStart: number, entryOffset: number, littleEndian: boolean): number {
-  const valueOffset = view.getUint32(entryOffset + 8, littleEndian)
-  const degrees = view.getUint32(tiffStart + valueOffset, littleEndian) / view.getUint32(tiffStart + valueOffset + 4, littleEndian)
-  const minutes = view.getUint32(tiffStart + valueOffset + 8, littleEndian) / view.getUint32(tiffStart + valueOffset + 12, littleEndian)
-  const seconds = view.getUint32(tiffStart + valueOffset + 16, littleEndian) / view.getUint32(tiffStart + valueOffset + 20, littleEndian)
-  return degrees + minutes / 60 + seconds / 3600
-}
-
-function readExifString(view: DataView, tiffStart: number, entryOffset: number, littleEndian: boolean): string {
-  const count = view.getUint32(entryOffset + 4, littleEndian)
-  const valueOffset = count <= 4 ? entryOffset + 8 : tiffStart + view.getUint32(entryOffset + 8, littleEndian)
-  let str = ''
-  for (let i = 0; i < count - 1; i++) {
-    str += String.fromCharCode(view.getUint8(valueOffset + i))
-  }
-  return str.trim()
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -331,7 +242,13 @@ export default function AddPlantPage() {
         setLocationLng(data.lng.toFixed(6))
       }
       if (data.timestamp) {
-        const dateStr = data.timestamp.replace(/^(\d{4}):(\d{2}):(\d{2}).*/, '$1-$2-$3')
+        // Handle ISO date (2024-01-15T...) or EXIF date (2024:01:15 ...)
+        let dateStr = data.timestamp
+        if (dateStr.includes('T')) {
+          dateStr = dateStr.split('T')[0]
+        } else {
+          dateStr = dateStr.replace(/^(\d{4}):(\d{2}):(\d{2}).*/, '$1-$2-$3')
+        }
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
           setAcquiredDate(dateStr)
         }
