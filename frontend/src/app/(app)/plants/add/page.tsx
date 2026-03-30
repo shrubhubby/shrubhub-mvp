@@ -72,27 +72,48 @@ function nextPhotoId() { return `photo_${++photoIdCounter}` }
 async function extractExifFromFile(file: File): Promise<ExifData> {
   const result: ExifData = { lat: null, lng: null, timestamp: null, make: null, model: null }
   try {
-    const parsed = await exifr.parse(file, {
-      gps: true,
-      pick: ['DateTimeOriginal', 'DateTime', 'Make', 'Model', 'latitude', 'longitude'],
-    })
-    if (!parsed) return result
+    // Try full parse first (works for JPEG, TIFF, HEIC)
+    const parsed = await exifr.parse(file)
+    if (parsed) {
+      if (parsed.latitude != null && parsed.longitude != null) {
+        result.lat = parsed.latitude
+        result.lng = parsed.longitude
+      }
+      const dateVal = parsed.DateTimeOriginal || parsed.DateTimeDigitized || parsed.DateTime || parsed.CreateDate
+      if (dateVal instanceof Date) {
+        result.timestamp = dateVal.toISOString()
+      } else if (typeof dateVal === 'string') {
+        result.timestamp = dateVal
+      }
+      if (parsed.Make) result.make = String(parsed.Make)
+      if (parsed.Model) result.model = String(parsed.Model)
+    }
 
-    if (parsed.latitude != null && parsed.longitude != null) {
-      result.lat = parsed.latitude
-      result.lng = parsed.longitude
+    // If no GPS from EXIF, try separate GPS parse (handles some edge cases)
+    if (result.lat == null) {
+      const gps = await exifr.gps(file).catch(() => null)
+      if (gps?.latitude != null && gps?.longitude != null) {
+        result.lat = gps.latitude
+        result.lng = gps.longitude
+      }
     }
-    const dateVal = parsed.DateTimeOriginal || parsed.DateTime
-    if (dateVal instanceof Date) {
-      result.timestamp = dateVal.toISOString()
-    } else if (typeof dateVal === 'string') {
-      result.timestamp = dateVal
-    }
-    if (parsed.Make) result.make = parsed.Make
-    if (parsed.Model) result.model = parsed.Model
   } catch {
     // EXIF parsing failed — non-critical
   }
+
+  // Fallback: if no GPS from image, ask browser for current location
+  if (result.lat == null && 'geolocation' in navigator) {
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+      })
+      result.lat = pos.coords.latitude
+      result.lng = pos.coords.longitude
+    } catch {
+      // Geolocation denied or unavailable — that's fine
+    }
+  }
+
   return result
 }
 
