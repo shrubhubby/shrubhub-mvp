@@ -358,37 +358,39 @@ export function GardenDetail({ garden: initialGarden, plants }: GardenDetailProp
               const scientific = plant.plants_master?.scientific_name
 
               return (
-                <Card key={plant.id}>
-                  <CardContent className="flex items-center gap-4 py-3">
-                    <div className="w-10 h-10 rounded-lg bg-soft flex items-center justify-center flex-shrink-0">
-                      <Sprout size={18} className="text-forest/50" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-coal truncate">{name}</p>
-                        <Badge variant={healthColor(plant.health_status)} size="sm" className="flex-shrink-0">
-                          {plant.health_status?.replace('_', ' ')}
-                        </Badge>
+                <Link key={plant.id} href={`/plants/${plant.id}`}>
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                    <CardContent className="flex items-center gap-4 py-3">
+                      <div className="w-10 h-10 rounded-lg bg-soft flex items-center justify-center flex-shrink-0">
+                        <Sprout size={18} className="text-forest/50" />
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-coal/50 mt-0.5">
-                        {scientific && <span className="italic truncate">{scientific}</span>}
-                        {plant.location_in_garden && (
-                          <span className="flex items-center gap-0.5 flex-shrink-0">
-                            <MapPin size={10} /> {plant.location_in_garden}
-                          </span>
-                        )}
-                        {plant.acquired_date && (
-                          <span className="flex items-center gap-0.5 flex-shrink-0">
-                            <Droplet size={10} /> {formatRelativeTime(plant.acquired_date)}
-                          </span>
-                        )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-coal truncate">{name}</p>
+                          <Badge variant={healthColor(plant.health_status)} size="sm" className="flex-shrink-0">
+                            {plant.health_status?.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-coal/50 mt-0.5">
+                          {scientific && <span className="italic truncate">{scientific}</span>}
+                          {plant.location_in_garden && (
+                            <span className="flex items-center gap-0.5 flex-shrink-0">
+                              <MapPin size={10} /> {plant.location_in_garden}
+                            </span>
+                          )}
+                          {plant.acquired_date && (
+                            <span className="flex items-center gap-0.5 flex-shrink-0">
+                              <Droplet size={10} /> {formatRelativeTime(plant.acquired_date)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-xs text-coal/40 capitalize flex-shrink-0">
-                      {plant.status?.replace('_', ' ')}
-                    </span>
-                  </CardContent>
-                </Card>
+                      <span className="text-xs text-coal/40 capitalize flex-shrink-0">
+                        {plant.status?.replace('_', ' ')}
+                      </span>
+                    </CardContent>
+                  </Card>
+                </Link>
               )
             })}
           </div>
