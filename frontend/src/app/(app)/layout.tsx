@@ -14,12 +14,7 @@ export default function AppLayout({
 
   return (
     <div className="min-h-screen bg-soft">
-      {/* Desktop sidebar */}
-      <div className="hidden md:block">
-        <Sidebar />
-      </div>
-
-      {/* Mobile sidebar */}
+      {/* Sidebar: hidden on mobile, sticky on desktop. Opens via isOpen on mobile. */}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
