@@ -39,7 +39,7 @@ export default async function PlantsPage() {
         .select(`
           id, common_name, custom_name, health_status, status,
           acquired_date, location_in_garden, garden_id,
-          plants_master (common_name, scientific_name)
+          plants_master (common_names, scientific_name)
         `)
         .in('garden_id', gardenIds)
         .order('created_at', { ascending: false })
@@ -77,7 +77,7 @@ export default async function PlantsPage() {
       ) : (
         <div className="space-y-2">
           {plants.map((plant: any) => {
-            const name = plant.custom_name || plant.plants_master?.common_name || plant.common_name || 'Unknown'
+            const name = plant.custom_name || plant.plants_master?.common_names?.[0] || plant.common_name || 'Unknown'
             const scientific = plant.plants_master?.scientific_name
             const gardenName = gardenNameMap[plant.garden_id]
             const healthColor =
