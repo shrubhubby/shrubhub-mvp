@@ -28,7 +28,7 @@ export default function AppLayout({
       {/* Main content */}
       <div className="md:pl-64">
         <Header onMenuClick={() => setIsSidebarOpen(true)} />
-        <main className="min-h-[calc(100vh-4rem)] pb-20 md:pb-4">
+        <main className="pb-20 md:pb-4">
           {children}
         </main>
       </div>
