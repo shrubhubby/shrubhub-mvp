@@ -33,7 +33,7 @@ export default async function PlantDetailPage({ params }: Props) {
         mature_height_inches, mature_width_inches, default_image_url
       ),
       gardens (
-        id, name, gardener_id, boundary, location_lat, location_lng
+        id, name, gardener_id, location_lat, location_lng
       )
     `)
     .eq('id', id)
