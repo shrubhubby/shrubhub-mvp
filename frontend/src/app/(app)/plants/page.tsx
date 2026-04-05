@@ -4,9 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
-import { Plus, Sprout, Droplet, MapPin } from 'lucide-react'
-import { formatRelativeTime } from '@/lib/utils'
+import { PlantList } from '@/components/plant/PlantList'
+import { Plus, Sprout } from 'lucide-react'
 
 export default async function PlantsPage() {
   const supabase = await createClient()
@@ -75,54 +74,7 @@ export default async function PlantsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {plants.map((plant: any) => {
-            const name = plant.custom_name || plant.plants_master?.common_names?.[0] || plant.common_name || 'Unknown'
-            const scientific = plant.plants_master?.scientific_name
-            const gardenName = gardenNameMap[plant.garden_id]
-            const healthColor =
-              plant.health_status === 'healthy' ? 'healthy'
-              : plant.health_status === 'needs_attention' ? 'attention'
-              : plant.health_status === 'sick' || plant.health_status === 'pest_issue' ? 'urgent'
-              : 'neutral'
-
-            return (
-              <Link key={plant.id} href={`/plants/${plant.id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="flex items-center gap-4 py-3">
-                    <div className="w-12 h-12 rounded-lg bg-soft flex items-center justify-center flex-shrink-0">
-                      <Sprout size={22} className="text-forest/50" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-coal truncate">{name}</p>
-                        <Badge variant={healthColor} className="text-xs flex-shrink-0">
-                          {plant.health_status?.replace('_', ' ')}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-coal/50 mt-0.5">
-                        {scientific && <span className="italic truncate">{scientific}</span>}
-                        {gardenName && (
-                          <span className="flex items-center gap-0.5 flex-shrink-0">
-                            <MapPin size={10} /> {gardenName}
-                          </span>
-                        )}
-                        {plant.acquired_date && (
-                          <span className="flex items-center gap-0.5 flex-shrink-0">
-                            <Droplet size={10} /> {formatRelativeTime(plant.acquired_date)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-xs text-coal/40 capitalize flex-shrink-0">
-                      {plant.status?.replace('_', ' ')}
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
+        <PlantList plants={plants} gardenNameMap={gardenNameMap} />
       )}
     </div>
   )
