@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -64,53 +63,53 @@ export function PlantList({ plants: initialPlants, gardenNameMap }: PlantListPro
           const gardenName = gardenNameMap[plant.garden_id]
 
           return (
-            <div key={plant.id} className="group relative">
-              <Link href={`/plants/${plant.id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="flex items-center gap-4 py-3">
-                    <div className="w-12 h-12 rounded-lg bg-soft flex items-center justify-center flex-shrink-0">
-                      <Sprout size={22} className="text-forest/50" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-coal truncate">{name}</p>
-                        <Badge variant={healthColor(plant.health_status)} className="text-xs flex-shrink-0">
-                          {plant.health_status?.replace('_', ' ')}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-coal/50 mt-0.5">
-                        {scientific && <span className="italic truncate">{scientific}</span>}
-                        {gardenName && (
-                          <span className="flex items-center gap-0.5 flex-shrink-0">
-                            <MapPin size={10} /> {gardenName}
-                          </span>
-                        )}
-                        {plant.acquired_date && (
-                          <span className="flex items-center gap-0.5 flex-shrink-0">
-                            <Droplet size={10} /> {formatRelativeTime(plant.acquired_date)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-xs text-coal/40 capitalize flex-shrink-0">
-                      {plant.status?.replace('_', ' ')}
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
-              {/* Trash icon on hover */}
-              <button
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setShowConfirm({ id: plant.id, name })
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg opacity-0 group-hover:opacity-100 text-coal/30 hover:text-red-500 hover:bg-red-50 transition-all z-10"
-                title="Delete plant"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
+            <Card
+              key={plant.id}
+              className="group hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => router.push(`/plants/${plant.id}`)}
+            >
+              <CardContent className="flex items-center gap-4 py-3">
+                <div className="w-12 h-12 rounded-lg bg-soft flex items-center justify-center flex-shrink-0">
+                  <Sprout size={22} className="text-forest/50" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-coal truncate">{name}</p>
+                    <Badge variant={healthColor(plant.health_status)} className="text-xs flex-shrink-0">
+                      {plant.health_status?.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-coal/50 mt-0.5">
+                    {scientific && <span className="italic truncate">{scientific}</span>}
+                    {gardenName && (
+                      <span className="flex items-center gap-0.5 flex-shrink-0">
+                        <MapPin size={10} /> {gardenName}
+                      </span>
+                    )}
+                    {plant.acquired_date && (
+                      <span className="flex items-center gap-0.5 flex-shrink-0">
+                        <Droplet size={10} /> {formatRelativeTime(plant.acquired_date)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-coal/40 capitalize">
+                    {plant.status?.replace('_', ' ')}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowConfirm({ id: plant.id, name })
+                    }}
+                    className="p-2 rounded-lg opacity-0 group-hover:opacity-100 text-coal/30 hover:text-red-500 hover:bg-red-50 transition-all"
+                    title="Delete plant"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
           )
         })}
       </div>
