@@ -13,17 +13,17 @@ export default function AppLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-soft">
-      {/* Sidebar: hidden on mobile, sticky on desktop. Opens via isOpen on mobile. */}
+    <div className="flex min-h-screen bg-soft">
+      {/* Desktop sidebar (in-flow, takes space) + Mobile sidebar (overlay) */}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      {/* Main content */}
-      <div className="md:pl-64">
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
         <Header onMenuClick={() => setIsSidebarOpen(true)} />
-        <main className="pb-20 md:pb-4">
+        <main className="flex-1 pb-20 md:pb-4">
           {children}
         </main>
       </div>
