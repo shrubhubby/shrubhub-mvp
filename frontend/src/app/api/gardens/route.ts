@@ -92,6 +92,87 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: gardener } = await supabase
+      .from('gardeners')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (!gardener) {
+      return NextResponse.json({ error: 'Gardener not found' }, { status: 404 })
+    }
+
+    const body = await request.json()
+    const { id, name, description, garden_type, location_description, sun_exposure, soil_type, is_primary } = body
+
+    if (!id) {
+      return NextResponse.json({ error: 'Garden id is required' }, { status: 400 })
+    }
+
+    // Verify garden belongs to user
+    const { data: existing } = await supabase
+      .from('gardens')
+      .select('id, gardener_id')
+      .eq('id', id)
+      .single()
+
+    if (!existing || existing.gardener_id !== gardener.id) {
+      return NextResponse.json({ error: 'Garden not found or unauthorized' }, { status: 403 })
+    }
+
+    // If setting as primary, unset others
+    if (is_primary) {
+      await supabase
+        .from('gardens')
+        .update({ is_primary: false })
+        .eq('gardener_id', gardener.id)
+        .neq('id', id)
+    }
+
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() }
+    if (name !== undefined) updates.name = name
+    if (description !== undefined) updates.description = description || null
+    if (garden_type !== undefined) updates.garden_type = garden_type
+    if (location_description !== undefined) updates.location_description = location_description || null
+    if (sun_exposure !== undefined) updates.sun_exposure = sun_exposure || null
+    if (soil_type !== undefined) updates.soil_type = soil_type || null
+    if (is_primary !== undefined) updates.is_primary = is_primary
+
+    const { data: garden, error: updateError } = await supabase
+      .from('gardens')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error('Error updating garden:', updateError)
+      return NextResponse.json(
+        { error: 'Failed to update garden', details: updateError.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, garden }, { status: 200 })
+  } catch (error) {
+    console.error('Unexpected error in PUT /api/gardens:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
