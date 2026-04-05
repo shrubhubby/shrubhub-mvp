@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Fence, Plus, Sprout, MapPin } from 'lucide-react'
+import { GardenCard } from '@/components/garden/GardenCard'
+import { Fence, Plus } from 'lucide-react'
 
 export default async function GardensPage() {
   const supabase = await createClient()
@@ -67,39 +68,13 @@ export default async function GardensPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {gardens.map((garden: any) => {
-            const count = plantCountByGarden[garden.id] || 0
-            return (
-              <Card key={garden.id} elevation={1}>
-                <CardContent className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-coal">{garden.name}</h3>
-                      {garden.garden_type && (
-                        <span className="text-xs text-coal/50 capitalize">{garden.garden_type.replace('_', ' ')}</span>
-                      )}
-                    </div>
-                    <div className="w-10 h-10 rounded-lg bg-ocean-deep/10 flex items-center justify-center">
-                      <Fence size={20} className="text-ocean-deep" />
-                    </div>
-                  </div>
-                  {garden.description && (
-                    <p className="text-sm text-coal/60 line-clamp-2">{garden.description}</p>
-                  )}
-                  <div className="flex items-center gap-4 text-sm text-coal/50">
-                    <span className="flex items-center gap-1">
-                      <Sprout size={14} /> {count} plant{count !== 1 ? 's' : ''}
-                    </span>
-                    {garden.location_description && (
-                      <span className="flex items-center gap-1 truncate">
-                        <MapPin size={14} /> {garden.location_description}
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+          {gardens.map((garden: any) => (
+            <GardenCard
+              key={garden.id}
+              garden={garden}
+              plantCount={plantCountByGarden[garden.id] || 0}
+            />
+          ))}
         </div>
       )}
     </div>

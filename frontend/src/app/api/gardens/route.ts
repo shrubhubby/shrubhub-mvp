@@ -92,6 +92,71 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: gardener } = await supabase
+      .from('gardeners')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (!gardener) {
+      return NextResponse.json({ error: 'Gardener not found' }, { status: 404 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const gardenId = searchParams.get('id')
+
+    if (!gardenId) {
+      return NextResponse.json({ error: 'Garden id is required' }, { status: 400 })
+    }
+
+    // Verify garden belongs to user
+    const { data: garden } = await supabase
+      .from('gardens')
+      .select('id, gardener_id')
+      .eq('id', gardenId)
+      .single()
+
+    if (!garden || garden.gardener_id !== gardener.id) {
+      return NextResponse.json({ error: 'Garden not found or unauthorized' }, { status: 403 })
+    }
+
+    // Delete garden (plants cascade-delete via FK constraint)
+    const { error: deleteError } = await supabase
+      .from('gardens')
+      .delete()
+      .eq('id', gardenId)
+
+    if (deleteError) {
+      console.error('Error deleting garden:', deleteError)
+      return NextResponse.json(
+        { error: 'Failed to delete garden', details: deleteError.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true }, { status: 200 })
+  } catch (error) {
+    console.error('Unexpected error in DELETE /api/gardens:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
