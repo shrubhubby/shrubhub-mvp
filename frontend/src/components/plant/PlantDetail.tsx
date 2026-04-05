@@ -1,17 +1,20 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { Input, Textarea } from '@/components/ui/Input'
 import {
   ArrowLeft, Droplet, Sun, Thermometer, Scissors, Leaf,
-  Calendar, MapPin, TreeDeciduous, ChevronDown, ChevronUp,
+  Calendar, MapPin, TreeDeciduous, Pencil, Check, X, Plus,
+  Camera, Upload,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
 import { PlantLocationMap } from './PlantLocationMap'
+import { createClient } from '@/lib/supabase/client'
 
 // --- Types ---
 
@@ -43,7 +46,6 @@ interface Garden {
   id: string
   name: string
   gardener_id: string
-  boundary: string | null
   location_lat: number | null
   location_lng: number | null
 }
@@ -60,6 +62,7 @@ interface Plant {
   location_lng: number | null
   acquired_date: string
   acquisition_source: string | null
+  acquisition_notes: string | null
   status: string
   health_status: string
   planted_date: string | null
@@ -115,13 +118,20 @@ interface PlantDetailProps {
   children: ChildPlant[]
 }
 
-// --- Activity type helpers ---
+// --- Helpers ---
 
 const ACTIVITY_TYPES = [
   'watering', 'fertilizing', 'pruning', 'repotting', 'transplanting',
   'harvesting', 'treating_pests', 'treating_disease', 'staking',
   'mulching', 'soil_amendment', 'deadheading', 'thinning', 'germination', 'other',
 ]
+
+const STATUS_OPTIONS = [
+  'seed', 'germinating', 'seedling', 'vegetative', 'flowering',
+  'fruiting', 'dormant', 'alive', 'struggling', 'dead', 'harvested', 'adopted_out',
+]
+
+const HEALTH_OPTIONS = ['healthy', 'needs_attention', 'sick', 'pest_issue', 'dead']
 
 const activityIcon = (type: string) => {
   const icons: Record<string, string> = {
@@ -143,14 +153,37 @@ const sunlightLabel = (s: string | undefined) => {
   return map[s] || s.replace('_', ' ')
 }
 
-// --- Component ---
+const healthVariant = (h: string) =>
+  h === 'healthy' ? 'healthy'
+  : h === 'needs_attention' ? 'attention'
+  : h === 'sick' || h === 'pest_issue' ? 'urgent'
+  : 'neutral'
 
 type Tab = 'activities' | 'lineage'
 
-export function PlantDetail({ plant, photos, activities, lineage, children }: PlantDetailProps) {
+// --- Component ---
+
+export function PlantDetail({ plant: initialPlant, photos: initialPhotos, activities, lineage, children }: PlantDetailProps) {
+  const router = useRouter()
+  const [plant, setPlant] = useState(initialPlant)
+  const [photos, setPhotos] = useState(initialPhotos)
   const [tab, setTab] = useState<Tab>('activities')
   const [activityFilter, setActivityFilter] = useState<string>('all')
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
+
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [editName, setEditName] = useState(plant.common_name)
+  const [editCustomName, setEditCustomName] = useState(plant.custom_name || '')
+  const [editStatus, setEditStatus] = useState(plant.status)
+  const [editHealth, setEditHealth] = useState(plant.health_status)
+  const [editLocation, setEditLocation] = useState(plant.location_in_garden || '')
+  const [editNotes, setEditNotes] = useState(plant.acquisition_notes || '')
+
+  // Photo upload state
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const master = plant.plants_master
   const care = plant.care_override || master?.care_guide || null
@@ -161,18 +194,117 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
   const photoUrl = (path: string) =>
     `${supabaseUrl}/storage/v1/object/public/plant-photos/${path}`
 
-  const healthVariant = (h: string) =>
-    h === 'healthy' ? 'healthy'
-    : h === 'needs_attention' ? 'attention'
-    : h === 'sick' || h === 'pest_issue' ? 'urgent'
-    : 'neutral'
+  // --- Edit handlers ---
+
+  const startEditing = () => {
+    setEditName(plant.common_name)
+    setEditCustomName(plant.custom_name || '')
+    setEditStatus(plant.status)
+    setEditHealth(plant.health_status)
+    setEditLocation(plant.location_in_garden || '')
+    setEditNotes(plant.acquisition_notes || '')
+    setIsEditing(true)
+  }
+
+  const handleSave = async () => {
+    if (!editName.trim()) return
+    setIsSaving(true)
+    try {
+      const res = await fetch('/api/plants', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: plant.id,
+          common_name: editName.trim(),
+          custom_name: editCustomName.trim() || null,
+          status: editStatus,
+          health_status: editHealth,
+          location_in_garden: editLocation.trim() || null,
+          acquisition_notes: editNotes.trim() || null,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      const data = await res.json()
+      setPlant(data.plant)
+      setIsEditing(false)
+    } catch (error) {
+      console.error('Error saving plant:', error)
+      alert('Failed to save changes.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // --- Photo upload ---
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setIsUploading(true)
+    try {
+      const supabase = createClient()
+      const now = new Date().toISOString()
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const ext = file.name.split('.').pop() || 'jpg'
+        const storagePath = `plants/${plant.id}/general_${Date.now()}_${i}.${ext}`
+
+        // Extract date from file if possible, otherwise use now
+        const takenAt = file.lastModified
+          ? new Date(file.lastModified).toISOString()
+          : now
+
+        const { error: uploadError } = await supabase.storage
+          .from('plant-photos')
+          .upload(storagePath, file)
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError)
+          continue
+        }
+
+        // Create plant_photos record
+        const { data: photoRecord, error: insertError } = await supabase
+          .from('plant_photos')
+          .insert({
+            plant_id: plant.id,
+            storage_bucket: 'plant-photos',
+            storage_path: storagePath,
+            taken_at: takenAt,
+            uploaded_at: now,
+            mime_type: file.type,
+            file_size_bytes: file.size,
+            photo_type: 'general',
+            is_primary: photos.length === 0 && i === 0,
+            display_order: photos.length + i,
+          })
+          .select()
+          .single()
+
+        if (!insertError && photoRecord) {
+          setPhotos(prev => [photoRecord, ...prev])
+        }
+      }
+    } catch (error) {
+      console.error('Error uploading photos:', error)
+      alert('Failed to upload photos.')
+    } finally {
+      setIsUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  // --- Derived data ---
 
   const filteredActivities = activityFilter === 'all'
     ? activities
     : activities.filter(a => a.activity_type === activityFilter)
 
-  // Determine active activity types for filter buttons
   const activeTypes = [...new Set(activities.map(a => a.activity_type))]
+
+  // --- Render ---
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl space-y-6">
@@ -196,12 +328,84 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
             </span>
           </div>
         </div>
+        {!isEditing && (
+          <Button variant="outline" size="sm" onClick={startEditing}>
+            <Pencil size={16} /> Edit
+          </Button>
+        )}
       </div>
 
-      {/* Location map — plant dot inside garden polygon */}
-      {garden?.boundary && plant.location_lat && plant.location_lng && (
+      {/* Edit Form */}
+      {isEditing && (
+        <Card>
+          <CardContent className="space-y-4">
+            <Input
+              label="Common Name *"
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              placeholder="e.g., Tomato"
+            />
+            <Input
+              label="Nickname"
+              value={editCustomName}
+              onChange={e => setEditCustomName(e.target.value)}
+              placeholder="e.g., Big Red"
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-coal mb-1">Status</label>
+                <select
+                  value={editStatus}
+                  onChange={e => setEditStatus(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-soft bg-white text-coal focus:outline-none focus:ring-2 focus:ring-forest focus:border-forest transition-all duration-200"
+                >
+                  {STATUS_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-coal mb-1">Health</label>
+                <select
+                  value={editHealth}
+                  onChange={e => setEditHealth(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-soft bg-white text-coal focus:outline-none focus:ring-2 focus:ring-forest focus:border-forest transition-all duration-200"
+                >
+                  {HEALTH_OPTIONS.map(h => (
+                    <option key={h} value={h}>{h.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <Input
+              label="Location in Garden"
+              value={editLocation}
+              onChange={e => setEditLocation(e.target.value)}
+              placeholder="e.g., South raised bed, left side"
+            />
+            <Textarea
+              label="Notes"
+              value={editNotes}
+              onChange={e => setEditNotes(e.target.value)}
+              placeholder="Any notes about this plant..."
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleSave} disabled={isSaving || !editName.trim()}>
+                <Check size={16} /> {isSaving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Location map */}
+      {garden && plant.location_lat && plant.location_lng && (
         <PlantLocationMap
-          gardenBoundaryWKT={garden.boundary}
+          gardenBoundaryWKT=""
           plantLat={plant.location_lat}
           plantLng={plant.location_lng}
           gardenCenter={
@@ -212,105 +416,157 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
         />
       )}
 
-      {/* Photo gallery */}
-      {photos.length > 0 && (
-        <Card>
-          <CardContent>
-            <h3 className="text-sm font-medium text-coal mb-3">
+      {/* Photo gallery + upload */}
+      <Card>
+        <CardContent>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-coal">
               Photos ({photos.length})
             </h3>
-            <div className="flex gap-2 flex-wrap">
-              {photos.map(photo => (
-                <button
-                  key={photo.id}
-                  onClick={() => setSelectedPhoto(
-                    selectedPhoto === photo.id ? null : photo.id
-                  )}
-                  className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                    selectedPhoto === photo.id ? 'border-forest scale-105' : 'border-transparent'
-                  }`}
-                >
-                  <img
-                    src={photoUrl(photo.thumbnail_path || photo.storage_path)}
-                    alt={photo.caption || 'Plant photo'}
-                    className="w-full h-full object-cover"
-                  />
-                  {photo.is_primary && (
-                    <div className="absolute top-0.5 right-0.5 bg-forest text-white text-[8px] px-1 rounded">
-                      Primary
-                    </div>
-                  )}
-                </button>
-              ))}
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <>Uploading...</>
+                ) : (
+                  <><Plus size={14} /> Add Photos</>
+                )}
+              </Button>
             </div>
-            {/* Expanded photo */}
-            {selectedPhoto && (() => {
-              const photo = photos.find(p => p.id === selectedPhoto)
-              if (!photo) return null
-              return (
-                <div className="mt-3">
-                  <img
-                    src={photoUrl(photo.storage_path)}
-                    alt={photo.caption || 'Plant photo'}
-                    className="w-full max-h-96 object-contain rounded-lg bg-soft"
-                  />
-                  <div className="flex items-center gap-3 mt-2 text-xs text-coal/50">
-                    <span>{new Date(photo.taken_at).toLocaleDateString()}</span>
-                    <span className="capitalize">{photo.photo_type.replace('_', ' ')}</span>
-                    {photo.caption && <span>{photo.caption}</span>}
+          </div>
+
+          {photos.length > 0 ? (
+            <>
+              <div className="flex gap-2 flex-wrap">
+                {photos.map(photo => (
+                  <button
+                    key={photo.id}
+                    onClick={() => setSelectedPhoto(
+                      selectedPhoto === photo.id ? null : photo.id
+                    )}
+                    className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedPhoto === photo.id ? 'border-forest scale-105' : 'border-transparent'
+                    }`}
+                  >
+                    <img
+                      src={photoUrl(photo.thumbnail_path || photo.storage_path)}
+                      alt={photo.caption || 'Plant photo'}
+                      className="w-full h-full object-cover"
+                    />
+                    {photo.is_primary && (
+                      <div className="absolute top-0.5 right-0.5 bg-forest text-white text-[8px] px-1 rounded">
+                        Primary
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {/* Expanded photo */}
+              {selectedPhoto && (() => {
+                const photo = photos.find(p => p.id === selectedPhoto)
+                if (!photo) return null
+                return (
+                  <div className="mt-3">
+                    <img
+                      src={photoUrl(photo.storage_path)}
+                      alt={photo.caption || 'Plant photo'}
+                      className="w-full max-h-96 object-contain rounded-lg bg-soft"
+                    />
+                    <div className="flex items-center gap-3 mt-2 text-xs text-coal/50">
+                      <span>{new Date(photo.taken_at).toLocaleDateString()}</span>
+                      <span className="capitalize">{photo.photo_type.replace('_', ' ')}</span>
+                      {photo.caption && <span>{photo.caption}</span>}
+                    </div>
                   </div>
+                )
+              })()}
+            </>
+          ) : (
+            <div className="py-6 text-center">
+              <Camera size={32} className="mx-auto text-coal/20 mb-2" />
+              <p className="text-sm text-coal/50">No photos yet</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="text-sm text-forest hover:underline mt-1"
+              >
+                Upload the first photo
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Plant info (read-only) */}
+      {!isEditing && (
+        <Card>
+          <CardContent className="space-y-3">
+            <h3 className="text-sm font-medium text-coal">Plant Information</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-coal/50">Common Name</span>
+                <p className="font-medium text-coal">{plant.common_name}</p>
+              </div>
+              {master?.scientific_name && (
+                <div>
+                  <span className="text-coal/50">Species</span>
+                  <p className="font-medium text-coal italic">{master.scientific_name}</p>
                 </div>
-              )
-            })()}
+              )}
+              {master?.family && (
+                <div>
+                  <span className="text-coal/50">Family</span>
+                  <p className="font-medium text-coal">{master.family}</p>
+                </div>
+              )}
+              {master?.plant_type && (
+                <div>
+                  <span className="text-coal/50">Type</span>
+                  <p className="font-medium text-coal capitalize">{master.plant_type}</p>
+                </div>
+              )}
+              {plant.custom_name && plant.custom_name !== plant.common_name && (
+                <div>
+                  <span className="text-coal/50">Nickname</span>
+                  <p className="font-medium text-coal">{plant.custom_name}</p>
+                </div>
+              )}
+              {plant.acquired_date && (
+                <div>
+                  <span className="text-coal/50">Acquired</span>
+                  <p className="font-medium text-coal">{formatRelativeTime(plant.acquired_date)}</p>
+                </div>
+              )}
+              {plant.location_in_garden && (
+                <div>
+                  <span className="text-coal/50">Location</span>
+                  <p className="font-medium text-coal">{plant.location_in_garden}</p>
+                </div>
+              )}
+              {plant.acquisition_source && (
+                <div>
+                  <span className="text-coal/50">Source</span>
+                  <p className="font-medium text-coal capitalize">{plant.acquisition_source.replace('_', ' ')}</p>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Plant identification & taxonomy */}
-      <Card>
-        <CardContent className="space-y-3">
-          <h3 className="text-sm font-medium text-coal">Plant Information</h3>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-coal/50">Common Name</span>
-              <p className="font-medium text-coal">{plant.common_name}</p>
-            </div>
-            {master?.scientific_name && (
-              <div>
-                <span className="text-coal/50">Species</span>
-                <p className="font-medium text-coal italic">{master.scientific_name}</p>
-              </div>
-            )}
-            {master?.family && (
-              <div>
-                <span className="text-coal/50">Family</span>
-                <p className="font-medium text-coal">{master.family}</p>
-              </div>
-            )}
-            {master?.plant_type && (
-              <div>
-                <span className="text-coal/50">Type</span>
-                <p className="font-medium text-coal capitalize">{master.plant_type}</p>
-              </div>
-            )}
-            {plant.custom_name && plant.custom_name !== plant.common_name && (
-              <div>
-                <span className="text-coal/50">Nickname</span>
-                <p className="font-medium text-coal">{plant.custom_name}</p>
-              </div>
-            )}
-            {plant.acquired_date && (
-              <div>
-                <span className="text-coal/50">Acquired</span>
-                <p className="font-medium text-coal">{formatRelativeTime(plant.acquired_date)}</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Default Care Instructions */}
-      {care && (
+      {/* Care Instructions */}
+      {care && !isEditing && (
         <Card>
           <CardContent className="space-y-3">
             <h3 className="text-sm font-medium text-coal">Care Instructions</h3>
@@ -320,9 +576,7 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
                   <Sun size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-coal/50">Sunlight</p>
-                    <p className="text-sm font-medium text-coal">
-                      {sunlightLabel(care.sunlight)}
-                    </p>
+                    <p className="text-sm font-medium text-coal">{sunlightLabel(care.sunlight)}</p>
                   </div>
                 </div>
               )}
@@ -380,9 +634,7 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
                       {care.soil.type?.replace('_', ' ') || 'General'}
                     </p>
                     {care.soil.ph_min && care.soil.ph_max && (
-                      <p className="text-xs text-coal/40 mt-0.5">
-                        pH {care.soil.ph_min} – {care.soil.ph_max}
-                      </p>
+                      <p className="text-xs text-coal/40 mt-0.5">pH {care.soil.ph_min} – {care.soil.ph_max}</p>
                     )}
                   </div>
                 </div>
@@ -392,9 +644,7 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
                   <Scissors size={18} className="text-coal/50 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-coal/50">Pruning</p>
-                    <p className="text-sm font-medium text-coal capitalize">
-                      {care.pruning.replace('_', ' ')}
-                    </p>
+                    <p className="text-sm font-medium text-coal capitalize">{care.pruning.replace('_', ' ')}</p>
                   </div>
                 </div>
               )}
@@ -403,14 +653,12 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
         </Card>
       )}
 
-      {/* Tabs: Activities | Lineage */}
+      {/* Tabs */}
       <div className="flex gap-1 bg-soft rounded-lg p-1">
         <button
           onClick={() => setTab('activities')}
           className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            tab === 'activities'
-              ? 'bg-white text-coal shadow-sm'
-              : 'text-coal/50 hover:text-coal'
+            tab === 'activities' ? 'bg-white text-coal shadow-sm' : 'text-coal/50 hover:text-coal'
           }`}
         >
           Activities ({activities.length})
@@ -418,27 +666,22 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
         <button
           onClick={() => setTab('lineage')}
           className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            tab === 'lineage'
-              ? 'bg-white text-coal shadow-sm'
-              : 'text-coal/50 hover:text-coal'
+            tab === 'lineage' ? 'bg-white text-coal shadow-sm' : 'text-coal/50 hover:text-coal'
           }`}
         >
           Lineage
         </button>
       </div>
 
-      {/* Tab Content: Activities */}
+      {/* Activities tab */}
       {tab === 'activities' && (
         <div className="space-y-3">
-          {/* Activity type filters */}
           {activeTypes.length > 1 && (
             <div className="flex gap-1.5 flex-wrap">
               <button
                 onClick={() => setActivityFilter('all')}
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  activityFilter === 'all'
-                    ? 'bg-forest text-white'
-                    : 'bg-soft text-coal/60 hover:bg-soft/80'
+                  activityFilter === 'all' ? 'bg-forest text-white' : 'bg-soft text-coal/60 hover:bg-soft/80'
                 }`}
               >
                 All
@@ -448,9 +691,7 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
                   key={type}
                   onClick={() => setActivityFilter(type)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize ${
-                    activityFilter === type
-                      ? 'bg-forest text-white'
-                      : 'bg-soft text-coal/60 hover:bg-soft/80'
+                    activityFilter === type ? 'bg-forest text-white' : 'bg-soft text-coal/60 hover:bg-soft/80'
                   }`}
                 >
                   {activityIcon(type)} {type.replace('_', ' ')}
@@ -471,9 +712,7 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
               {filteredActivities.map(activity => (
                 <Card key={activity.id}>
                   <CardContent className="flex items-start gap-3 py-3">
-                    <span className="text-xl mt-0.5">
-                      {activityIcon(activity.activity_type)}
-                    </span>
+                    <span className="text-xl mt-0.5">{activityIcon(activity.activity_type)}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-coal text-sm capitalize">
@@ -485,13 +724,9 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
                           </span>
                         )}
                       </div>
-                      {activity.notes && (
-                        <p className="text-xs text-coal/60 mt-0.5">{activity.notes}</p>
-                      )}
+                      {activity.notes && <p className="text-xs text-coal/60 mt-0.5">{activity.notes}</p>}
                       {activity.product_used && (
-                        <p className="text-xs text-coal/40 mt-0.5">
-                          Product: {activity.product_used}
-                        </p>
+                        <p className="text-xs text-coal/40 mt-0.5">Product: {activity.product_used}</p>
                       )}
                     </div>
                     <span className="text-xs text-coal/40 flex-shrink-0">
@@ -505,10 +740,9 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
         </div>
       )}
 
-      {/* Tab Content: Lineage */}
+      {/* Lineage tab */}
       {tab === 'lineage' && (
         <div className="space-y-4">
-          {/* Parent chain */}
           {lineage.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-coal mb-2">Parent Chain</h3>
@@ -519,10 +753,7 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
                       {i > 0 && <div className="w-0.5 h-3 bg-coal/15" />}
                       <div className="w-3 h-3 rounded-full bg-forest/30 border-2 border-forest/50" />
                     </div>
-                    <Link
-                      href={`/plants/${ancestor.id}`}
-                      className="text-sm text-forest hover:underline"
-                    >
+                    <Link href={`/plants/${ancestor.id}`} className="text-sm text-forest hover:underline">
                       {ancestor.custom_name || ancestor.common_name}
                     </Link>
                     {ancestor.acquisition_source && (
@@ -532,15 +763,12 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
                     )}
                   </div>
                 ))}
-                {/* Current plant */}
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col items-center" style={{ width: 24 }}>
                     <div className="w-0.5 h-3 bg-coal/15" />
                     <div className="w-4 h-4 rounded-full bg-forest border-2 border-forest" />
                   </div>
-                  <span className="text-sm font-semibold text-coal">
-                    {displayName}
-                  </span>
+                  <span className="text-sm font-semibold text-coal">{displayName}</span>
                   <span className="text-xs text-coal/40">(this plant)</span>
                 </div>
               </div>
@@ -552,44 +780,36 @@ export function PlantDetail({ plant, photos, activities, lineage, children }: Pl
               <CardContent className="py-8 text-center">
                 <TreeDeciduous size={32} className="mx-auto text-coal/20 mb-2" />
                 <p className="text-coal/50 text-sm">No lineage information available.</p>
-                {!plant.parent_plant_id && (
-                  <p className="text-xs text-coal/30 mt-1">
-                    This plant has no recorded parent or offspring.
-                  </p>
-                )}
               </CardContent>
             </Card>
           )}
 
-          {/* Children / offspring */}
           {children.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-coal mb-2">
-                Offspring ({children.length})
-              </h3>
+              <h3 className="text-sm font-medium text-coal mb-2">Offspring ({children.length})</h3>
               <div className="space-y-2">
                 {children.map(child => (
-                  <Link key={child.id} href={`/plants/${child.id}`}>
-                    <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                      <CardContent className="flex items-center gap-3 py-3">
-                        <div className="w-8 h-8 rounded-full bg-forest/10 flex items-center justify-center">
-                          <span className="text-sm">🌱</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-coal truncate">
-                            {child.custom_name || child.common_name}
-                          </p>
-                          <p className="text-xs text-coal/40 capitalize">
-                            {child.acquisition_source?.replace('_', ' ')}
-                            {child.acquired_date && ` — ${formatRelativeTime(child.acquired_date)}`}
-                          </p>
-                        </div>
-                        <span className="text-xs text-coal/40 capitalize">
-                          {child.status.replace('_', ' ')}
-                        </span>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                  <Card
+                    key={child.id}
+                    className="hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => router.push(`/plants/${child.id}`)}
+                  >
+                    <CardContent className="flex items-center gap-3 py-3">
+                      <div className="w-8 h-8 rounded-full bg-forest/10 flex items-center justify-center">
+                        <span className="text-sm">🌱</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-coal truncate">
+                          {child.custom_name || child.common_name}
+                        </p>
+                        <p className="text-xs text-coal/40 capitalize">
+                          {child.acquisition_source?.replace('_', ' ')}
+                          {child.acquired_date && ` — ${formatRelativeTime(child.acquired_date)}`}
+                        </p>
+                      </div>
+                      <span className="text-xs text-coal/40 capitalize">{child.status.replace('_', ' ')}</span>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </div>

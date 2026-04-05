@@ -128,6 +128,89 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: gardener } = await supabase
+      .from('gardeners')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
+
+    if (!gardener) {
+      return NextResponse.json({ error: 'Gardener not found' }, { status: 404 })
+    }
+
+    const body = await request.json()
+    const { id, ...fields } = body
+
+    if (!id) {
+      return NextResponse.json({ error: 'Plant id is required' }, { status: 400 })
+    }
+
+    // Verify plant belongs to user's garden
+    const { data: existing } = await supabase
+      .from('plants')
+      .select('id, garden_id, gardens(gardener_id)')
+      .eq('id', id)
+      .single()
+
+    if (!existing || (existing as any).gardens?.gardener_id !== gardener.id) {
+      return NextResponse.json({ error: 'Plant not found or unauthorized' }, { status: 403 })
+    }
+
+    // Build updates from allowed fields
+    const allowed = [
+      'common_name', 'custom_name', 'location_in_garden',
+      'location_lat', 'location_lng', 'acquired_date', 'planted_date',
+      'acquisition_source', 'acquisition_location', 'acquisition_notes',
+      'status', 'health_status', 'care_override',
+    ]
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() }
+    for (const key of allowed) {
+      if (fields[key] !== undefined) {
+        updates[key] = fields[key] === '' ? null : fields[key]
+      }
+    }
+
+    const { data: plant, error: updateError } = await supabase
+      .from('plants')
+      .update(updates)
+      .eq('id', id)
+      .select(`
+        *,
+        plants_master (
+          id, scientific_name, common_names, family, plant_type,
+          care_guide, hardiness_zones, growth_rate,
+          mature_height_inches, mature_width_inches, default_image_url
+        ),
+        gardens (
+          id, name, gardener_id, location_lat, location_lng
+        )
+      `)
+      .single()
+
+    if (updateError) {
+      console.error('Error updating plant:', updateError)
+      return NextResponse.json(
+        { error: 'Failed to update plant', details: updateError.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, plant }, { status: 200 })
+  } catch (error) {
+    console.error('Unexpected error in PUT /api/plants:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
