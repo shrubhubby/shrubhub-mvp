@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Sprout, MessageCircle, Calendar, Fence, MapPin, Settings, LogOut } from 'lucide-react'
+import { Home, Sprout, MessageCircle, Calendar, Fence, MapPin, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -17,7 +17,6 @@ const navItems = [
 
 const bottomItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
-  { href: '/logout', label: 'Logout', icon: LogOut }
 ]
 
 interface SidebarProps {

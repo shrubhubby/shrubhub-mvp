@@ -45,7 +45,7 @@ export function Header({ onMenuClick, user }: HeaderProps) {
               <Settings size={20} />
             </Button>
           </Link>
-          <Link href="/profile">
+          <Link href="/settings">
             <Avatar
               src={user?.avatar_url}
               alt={user?.name}
