@@ -11,6 +11,11 @@ import {
   ArrowLeft, Pencil, Trash2, Sprout, Droplet, MapPin, X, Check,
 } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/utils'
+import {
+  GardenBoundaryEditor,
+  parseBoundaryFromWKT,
+  convertBoundaryToWKT,
+} from '@/components/map/GardenBoundaryEditor'
 
 const GARDEN_TYPES = [
   { value: 'indoor', label: 'Indoor' },
@@ -37,6 +42,9 @@ interface Garden {
   description: string | null
   garden_type: string | null
   location_description: string | null
+  location_lat: number | null
+  location_lng: number | null
+  boundary: string | null
   sun_exposure: string | null
   soil_type: string | null
   is_primary: boolean
@@ -55,6 +63,11 @@ interface Plant {
     common_names: string[] | null
     scientific_name: string | null
   } | null
+}
+
+interface Coordinate {
+  latitude: number
+  longitude: number
 }
 
 interface GardenDetailProps {
@@ -77,6 +90,15 @@ export function GardenDetail({ garden: initialGarden, plants }: GardenDetailProp
   const [editLocation, setEditLocation] = useState(garden.location_description || '')
   const [editSun, setEditSun] = useState(garden.sun_exposure || '')
   const [editSoil, setEditSoil] = useState(garden.soil_type || '')
+  const [editBoundary, setEditBoundary] = useState<Coordinate[]>(
+    garden.boundary ? parseBoundaryFromWKT(garden.boundary) : []
+  )
+  const [editLat, setEditLat] = useState(garden.location_lat)
+  const [editLng, setEditLng] = useState(garden.location_lng)
+
+  const initialCenter = garden.location_lat && garden.location_lng
+    ? { lat: garden.location_lat, lng: garden.location_lng }
+    : undefined
 
   const startEditing = () => {
     setEditName(garden.name)
@@ -85,6 +107,9 @@ export function GardenDetail({ garden: initialGarden, plants }: GardenDetailProp
     setEditLocation(garden.location_description || '')
     setEditSun(garden.sun_exposure || '')
     setEditSoil(garden.soil_type || '')
+    setEditBoundary(garden.boundary ? parseBoundaryFromWKT(garden.boundary) : [])
+    setEditLat(garden.location_lat)
+    setEditLng(garden.location_lng)
     setIsEditing(true)
   }
 
@@ -107,6 +132,9 @@ export function GardenDetail({ garden: initialGarden, plants }: GardenDetailProp
           location_description: editLocation.trim(),
           sun_exposure: editSun || null,
           soil_type: editSoil.trim() || null,
+          boundary: convertBoundaryToWKT(editBoundary),
+          location_lat: editLat,
+          location_lng: editLng,
         }),
       })
       if (!res.ok) throw new Error('Failed to save')
@@ -169,101 +197,138 @@ export function GardenDetail({ garden: initialGarden, plants }: GardenDetailProp
 
       {/* Garden Info / Edit Form */}
       {isEditing ? (
-        <Card>
-          <CardContent className="space-y-4">
-            <Input
-              label="Name *"
-              value={editName}
-              onChange={e => setEditName(e.target.value)}
-              placeholder="Garden name"
-            />
-            <Textarea
-              label="Description"
-              value={editDescription}
-              onChange={e => setEditDescription(e.target.value)}
-              placeholder="Describe this garden..."
-              rows={3}
-            />
-            <div>
-              <label className="block text-sm font-medium text-coal mb-1">Type</label>
-              <select
-                value={editType}
-                onChange={e => setEditType(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-soft bg-white text-coal focus:outline-none focus:ring-2 focus:ring-forest focus:border-forest transition-all duration-200"
-              >
-                {GARDEN_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <Input
-              label="Location"
-              value={editLocation}
-              onChange={e => setEditLocation(e.target.value)}
-              placeholder="e.g., Backyard south side"
-            />
-            <div>
-              <label className="block text-sm font-medium text-coal mb-1">Sun Exposure</label>
-              <select
-                value={editSun}
-                onChange={e => setEditSun(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-soft bg-white text-coal focus:outline-none focus:ring-2 focus:ring-forest focus:border-forest transition-all duration-200"
-              >
-                {SUN_OPTIONS.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
-            <Input
-              label="Soil Type"
-              value={editSoil}
-              onChange={e => setEditSoil(e.target.value)}
-              placeholder="e.g., Sandy loam, clay"
-            />
-
-            <div className="flex items-center justify-between pt-2">
-              <button
-                onClick={() => { setIsEditing(false); setShowDeleteConfirm(true) }}
-                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-red-500 hover:bg-red-50 transition-colors"
-              >
-                <Trash2 size={16} />
-                {plants.length > 0
-                  ? `Delete garden & ${plants.length} plant${plants.length !== 1 ? 's' : ''}`
-                  : 'Delete garden'}
-              </button>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={cancelEditing} disabled={isSaving}>
-                  Cancel
-                </Button>
-                <Button variant="primary" size="sm" onClick={handleSave} disabled={isSaving || !editName.trim()}>
-                  <Check size={16} /> {isSaving ? 'Saving...' : 'Save'}
-                </Button>
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="space-y-4">
+              <Input
+                label="Name *"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                placeholder="Garden name"
+              />
+              <Textarea
+                label="Description"
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                placeholder="Describe this garden..."
+                rows={3}
+              />
+              <div>
+                <label className="block text-sm font-medium text-coal mb-1">Type</label>
+                <select
+                  value={editType}
+                  onChange={e => setEditType(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-soft bg-white text-coal focus:outline-none focus:ring-2 focus:ring-forest focus:border-forest transition-all duration-200"
+                >
+                  {GARDEN_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+              <Input
+                label="Location"
+                value={editLocation}
+                onChange={e => setEditLocation(e.target.value)}
+                placeholder="e.g., Backyard south side"
+              />
+              <div>
+                <label className="block text-sm font-medium text-coal mb-1">Sun Exposure</label>
+                <select
+                  value={editSun}
+                  onChange={e => setEditSun(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-soft bg-white text-coal focus:outline-none focus:ring-2 focus:ring-forest focus:border-forest transition-all duration-200"
+                >
+                  {SUN_OPTIONS.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <Input
+                label="Soil Type"
+                value={editSoil}
+                onChange={e => setEditSoil(e.target.value)}
+                placeholder="e.g., Sandy loam, clay"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Boundary Editor */}
+          <Card>
+            <CardContent>
+              <GardenBoundaryEditor
+                initialBoundary={editBoundary}
+                initialCenter={initialCenter}
+                onBoundaryChange={setEditBoundary}
+                onCenterChange={(lat, lng) => {
+                  setEditLat(lat)
+                  setEditLng(lng)
+                }}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Save / Delete actions */}
+          <Card>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => { setIsEditing(false); setShowDeleteConfirm(true) }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 size={16} />
+                  {plants.length > 0
+                    ? `Delete garden & ${plants.length} plant${plants.length !== 1 ? 's' : ''}`
+                    : 'Delete garden'}
+                </button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={cancelEditing} disabled={isSaving}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={handleSave} disabled={isSaving || !editName.trim()}>
+                    <Check size={16} /> {isSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
-        <Card>
-          <CardContent className="space-y-3">
-            {garden.description && (
-              <p className="text-coal/70">{garden.description}</p>
-            )}
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-coal/50">
-              {garden.location_description && (
-                <span className="flex items-center gap-1">
-                  <MapPin size={14} /> {garden.location_description}
-                </span>
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="space-y-3">
+              {garden.description && (
+                <p className="text-coal/70">{garden.description}</p>
               )}
-              {garden.sun_exposure && (
-                <span className="capitalize">{garden.sun_exposure.replace('_', ' ')}</span>
-              )}
-              {garden.soil_type && (
-                <span>{garden.soil_type}</span>
-              )}
-              <span>{plants.length} plant{plants.length !== 1 ? 's' : ''}</span>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-coal/50">
+                {garden.location_description && (
+                  <span className="flex items-center gap-1">
+                    <MapPin size={14} /> {garden.location_description}
+                  </span>
+                )}
+                {garden.sun_exposure && (
+                  <span className="capitalize">{garden.sun_exposure.replace('_', ' ')}</span>
+                )}
+                {garden.soil_type && (
+                  <span>{garden.soil_type}</span>
+                )}
+                <span>{plants.length} plant{plants.length !== 1 ? 's' : ''}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Read-only boundary map */}
+          {garden.boundary && (
+            <Card>
+              <CardContent>
+                <GardenBoundaryEditor
+                  initialBoundary={parseBoundaryFromWKT(garden.boundary)}
+                  initialCenter={initialCenter}
+                  onBoundaryChange={() => {}}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* Plants List */}

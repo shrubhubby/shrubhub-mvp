@@ -116,7 +116,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, name, description, garden_type, location_description, sun_exposure, soil_type, is_primary } = body
+    const { id, name, description, garden_type, location_description, sun_exposure, soil_type, is_primary, boundary, location_lat, location_lng } = body
 
     if (!id) {
       return NextResponse.json({ error: 'Garden id is required' }, { status: 400 })
@@ -150,6 +150,9 @@ export async function PUT(request: NextRequest) {
     if (sun_exposure !== undefined) updates.sun_exposure = sun_exposure || null
     if (soil_type !== undefined) updates.soil_type = soil_type || null
     if (is_primary !== undefined) updates.is_primary = is_primary
+    if (boundary !== undefined) updates.boundary = boundary || null
+    if (location_lat !== undefined) updates.location_lat = location_lat || null
+    if (location_lng !== undefined) updates.location_lng = location_lng || null
 
     const { data: garden, error: updateError } = await supabase
       .from('gardens')
