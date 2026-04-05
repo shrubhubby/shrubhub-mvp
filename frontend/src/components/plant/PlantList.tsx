@@ -105,7 +105,7 @@ export function PlantList({ plants: initialPlants, gardenNameMap }: PlantListPro
                   e.stopPropagation()
                   setShowConfirm({ id: plant.id, name })
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-coal/0 group-hover:text-coal/30 hover:!text-red-500 hover:bg-red-50 transition-all"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg opacity-0 group-hover:opacity-100 text-coal/30 hover:text-red-500 hover:bg-red-50 transition-all z-10"
                 title="Delete plant"
               >
                 <Trash2 size={16} />
