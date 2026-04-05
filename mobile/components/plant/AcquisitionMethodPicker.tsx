@@ -57,6 +57,13 @@ export const BUILT_IN_METHODS = [
     route: '/plants/register/seed',
   },
   {
+    value: 'unknown',
+    label: 'Inventory Existing',
+    emoji: '📋',
+    description: 'Catalog plants already in your garden',
+    route: '/plants/register/inventory',
+  },
+  {
     value: 'volunteer',
     label: 'Volunteer',
     emoji: '🌻',

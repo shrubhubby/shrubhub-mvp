@@ -14,6 +14,7 @@ export interface ExifData {
   longitude?: number
   make?: string
   model?: string
+  locationName?: string
 }
 
 export interface CapturedPhoto {
@@ -149,6 +150,22 @@ export function PhotoCapture({
             }
           } catch (locError) {
             console.log('Could not get location:', locError)
+          }
+        }
+
+        // Reverse geocode GPS coordinates to get human-readable location
+        if (exif.latitude && exif.longitude) {
+          try {
+            const [address] = await Location.reverseGeocodeAsync({
+              latitude: exif.latitude,
+              longitude: exif.longitude,
+            })
+            if (address) {
+              const parts = [address.city, address.region, address.country].filter(Boolean)
+              exif.locationName = parts.join(', ')
+            }
+          } catch (geoError) {
+            console.log('Could not reverse geocode:', geoError)
           }
         }
 
@@ -304,7 +321,7 @@ export function PhotoCapture({
                   )}
                   {extractedExif.latitude && extractedExif.longitude && (
                     <Text className="text-xs text-coal/60">
-                      📍 {extractedExif.latitude.toFixed(4)}, {extractedExif.longitude.toFixed(4)}
+                      📍 {extractedExif.locationName || `${extractedExif.latitude.toFixed(4)}, ${extractedExif.longitude.toFixed(4)}`}
                     </Text>
                   )}
                   {extractedExif.make && (
