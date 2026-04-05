@@ -16,7 +16,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick, user }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur border-b border-soft/50">
+    <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur border-b border-soft/50 md:hidden">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Left: Menu button (mobile) */}
         <Button
