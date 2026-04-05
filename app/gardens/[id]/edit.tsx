@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { View, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, ScrollView, KeyboardAvoidingView, Platform, Alert, Pressable } from 'react-native'
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -41,6 +41,8 @@ export default function EditGardenScreen() {
   const [boundary, setBoundary] = useState<Coordinate[]>([])
   const [initialLocation, setInitialLocation] = useState<{ latitude: number; longitude: number } | undefined>()
   const [initialBoundary, setInitialBoundary] = useState<Coordinate[]>([])
+  const [plantCount, setPlantCount] = useState(0)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     loadUserSites()
@@ -143,12 +145,51 @@ export default function EditGardenScreen() {
           })
         }
       }
+
+      // Get plant count
+      const { count } = await supabase
+        .from('plants')
+        .select('*', { count: 'exact', head: true })
+        .eq('garden_id', id)
+        .is('archived_at', null)
+
+      setPlantCount(count || 0)
     } catch (error) {
       console.error('Error loading garden:', error)
       alert('Failed to load garden details')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleDeleteGarden = () => {
+    const message = plantCount > 0
+      ? `This will permanently delete this garden and its ${plantCount} plant${plantCount !== 1 ? 's' : ''}. This cannot be undone.`
+      : 'Delete this garden? This cannot be undone.'
+
+    Alert.alert('Delete Garden?', message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setIsDeleting(true)
+          try {
+            const { error } = await supabase
+              .from('gardens')
+              .delete()
+              .eq('id', id)
+
+            if (error) throw error
+            router.replace('/(tabs)/gardens')
+          } catch (error) {
+            console.error('Error deleting garden:', error)
+            Alert.alert('Error', 'Failed to delete garden.')
+            setIsDeleting(false)
+          }
+        },
+      },
+    ])
   }
 
   const handleUpdateGarden = async () => {
@@ -327,6 +368,29 @@ export default function EditGardenScreen() {
                 initialBoundary={initialBoundary}
               />
             )}
+
+            {/* Delete Garden */}
+            <Card>
+              <CardContent>
+                <Pressable
+                  onPress={handleDeleteGarden}
+                  disabled={isDeleting}
+                  className="flex-row items-center gap-2 py-2 active:opacity-60"
+                >
+                  <Text className="text-base">🗑️</Text>
+                  <Text className="text-red-500 text-sm font-medium">
+                    {plantCount > 0
+                      ? `Delete garden & ${plantCount} plant${plantCount !== 1 ? 's' : ''}`
+                      : 'Delete garden'}
+                  </Text>
+                </Pressable>
+                {plantCount > 0 && (
+                  <Text className="text-xs text-coal/40 mt-1">
+                    All plants in this garden will be permanently deleted.
+                  </Text>
+                )}
+              </CardContent>
+            </Card>
           </View>
         </ScrollView>
 

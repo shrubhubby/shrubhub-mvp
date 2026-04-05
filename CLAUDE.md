@@ -8,20 +8,18 @@ ShrubHub is an AI-powered garden management app. Users create **Sites** (physica
 
 ## Repository Structure
 
-Loosely-structured monorepo with two independent apps sharing a Supabase backend:
+**IMPORTANT: The root directory IS the primary Expo app.** The `app/`, `components/`, `api/`, `lib/` directories at the repo root are the active, deployed code. Do NOT edit files in `mobile/` or `frontend/` — those are stale copies and are not deployed.
 
-- **`mobile/`** — Primary app. React Native + Expo (SDK 54) with Expo Router (file-based routing) and NativeWind (Tailwind for RN). Targets iOS, Android, and web.
-- **`frontend/`** — Next.js 14 web app (App Router, React 18, TailwindCSS). Legacy/secondary.
+- **Root (`/`)** — **Primary app (ACTIVE).** React Native + Expo (SDK 54) with Expo Router (file-based routing) and NativeWind (Tailwind for RN). Targets iOS, Android, and web. Deployed to shrubhub.ai.
+- **`mobile/`** — **STALE COPY. Do not edit.** Old duplicate of the root Expo app.
+- **`frontend/`** — **STALE COPY. Do not edit.** Old Next.js web app, superseded by the root Expo app.
 - **`styling/`** — Brand assets, logos, and Visual Brand Guidelines.
 - Root-level `.md` files — Architecture docs, database schema, setup guides.
 
-Each app has its own `package.json`, `tsconfig.json`, and git history.
-
 ## Development Commands
 
-### Mobile (primary)
+### Primary App (root directory)
 ```bash
-cd mobile
 npm install
 npm start              # Expo dev server
 npm run web            # Web browser
@@ -30,17 +28,7 @@ npm run android        # Android emulator
 npx expo install <pkg> # Add Expo-compatible dependency
 ```
 
-### Frontend (Next.js)
-```bash
-cd frontend
-npm install
-npm run dev            # Dev server (port 3000)
-npm run build          # Production build
-npm run lint           # ESLint
-npm run type-check     # tsc --noEmit
-```
-
-No test runner is currently configured in either app.
+No test runner is currently configured.
 
 ## Tech Stack
 

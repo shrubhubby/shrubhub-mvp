@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { View, Text, ScrollView, Pressable } from 'react-native'
+import { View, Text, ScrollView, Pressable, Alert } from 'react-native'
 import { Link, useRouter, useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
@@ -136,6 +136,34 @@ export default function GardensScreen() {
     }
   }
 
+  const handleDeleteGarden = (gardenId: string, gardenName: string) => {
+    Alert.alert(
+      'Delete Garden?',
+      `Delete "${gardenName}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('gardens')
+                .delete()
+                .eq('id', gardenId)
+
+              if (error) throw error
+              loadGardens()
+            } catch (error) {
+              console.error('Error deleting garden:', error)
+              Alert.alert('Error', 'Failed to delete garden.')
+            }
+          },
+        },
+      ]
+    )
+  }
+
   const getGardenTypeEmoji = (type: string) => {
     const emojiMap: Record<string, string> = {
       indoor: '🏠',
@@ -220,6 +248,17 @@ export default function GardensScreen() {
                           </Badge>
                         )}
                         <RoleBadge role={garden.role} />
+                        {(plantCounts[garden.id] || 0) === 0 && garden.role === 'owner' && (
+                          <Pressable
+                            onPress={(e) => {
+                              e.stopPropagation()
+                              handleDeleteGarden(garden.id, garden.name)
+                            }}
+                            className="mt-1 p-2 rounded-lg active:bg-red-100"
+                          >
+                            <Text className="text-base text-coal/30">🗑️</Text>
+                          </Pressable>
+                        )}
                       </View>
                     </View>
                   </CardHeader>
