@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, FlatList } from 'react-native'
+import { View, Text } from 'react-native'
 import { PlantCard } from './PlantCard'
 import type { Database } from '@/types/database.types'
 
@@ -27,18 +27,26 @@ export function PlantGrid({ plants, emptyMessage = 'No plants yet' }: PlantGridP
     )
   }
 
+  // Use View-based grid instead of FlatList to avoid zero-height issue
+  // when nested inside ScrollView (especially on web)
+  const rows: Plant[][] = []
+  for (let i = 0; i < plants.length; i += 2) {
+    rows.push(plants.slice(i, i + 2))
+  }
+
   return (
-    <FlatList
-      data={plants}
-      renderItem={({ item }) => (
-        <View className="p-2">
-          <PlantCard plant={item} />
+    <View style={{ gap: 8 }}>
+      {rows.map((row, rowIndex) => (
+        <View key={rowIndex} style={{ flexDirection: 'row', gap: 8 }}>
+          {row.map((plant) => (
+            <View key={plant.id} style={{ flex: 1, padding: 2 }}>
+              <PlantCard plant={plant} />
+            </View>
+          ))}
+          {/* Spacer for odd-count last row */}
+          {row.length === 1 && <View style={{ flex: 1, padding: 2 }} />}
         </View>
-      )}
-      keyExtractor={(item) => item.id}
-      numColumns={2}
-      columnWrapperStyle={{ gap: 8 }}
-      contentContainerStyle={{ gap: 8 }}
-    />
+      ))}
+    </View>
   )
 }
